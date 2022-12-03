@@ -98,6 +98,10 @@ export async function main(ns) {
         throw new Exception('Must be run from home')
     }
 
+    const ramToHack = ns.getScriptRam('hack.js')
+    const ramToGrow = ns.getScriptRam('grow.js')
+    const ramToWeaken = ns.getScriptRam('weaken.js')
+
     while (true) {
         const serverExtraData = {}
 
@@ -145,8 +149,8 @@ export async function main(ns) {
         rootedServers
             .map(host => serverMap.servers[host])
             .forEach(server => {
-                hackCycles += Math.floor(server.ram / 1.7)
-                growCycles += Math.floor(server.ram / 1.75)
+                hackCycles += Math.floor(server.ram / ramToHack)
+                growCycles += Math.floor(server.ram / ramToGrow)
             })
 
         let weakenCycles = growCycles
@@ -175,7 +179,9 @@ export async function main(ns) {
             rootedServers
                 .map(host => serverMap.servers[host])
                 .forEach(server => {
-                    let cyclesFittable = Math.max(0, Math.floor(server.ram / 1.75))
+                    const growCyclesFittable = Math.max(0, Math.floor(server.ram / ramToGrow))
+                    const weakenCyclesFittable = Math.max(0, Math.floor(server.ram / ramToWeaken))
+                    let cyclesFittable = Math.min(growCyclesFittable, weakenCyclesFittable)
                     const cyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
 
                     pp(ns, `#Cycles for ${server.host}: grow ${cyclesToRun}, weaken ${cyclesFittable}`)
@@ -200,7 +206,9 @@ export async function main(ns) {
             rootedServers
                 .map(host => serverMap.servers[host])
                 .forEach(server => {
-                    let cyclesFittable = Math.max(0, Math.floor(server.ram / 1.75))
+                    const growCyclesFittable = Math.max(0, Math.floor(server.ram / ramToGrow))
+                    const weakenCyclesFittable = Math.max(0, Math.floor(server.ram / ramToWeaken))
+                    let cyclesFittable = Math.min(growCyclesFittable, weakenCyclesFittable)
                     const cyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
 
                     if (growCycles) {
@@ -222,17 +230,17 @@ export async function main(ns) {
                     hackCycles *= 10
                 }
 
-                growCycles = Math.max(0, growCycles - Math.ceil((hackCycles * 1.7) / 1.75))
+                growCycles = Math.max(0, growCycles - Math.ceil((hackCycles * ramToHack) / ramToGrow))
 
                 weakenCycles = weakenCyclesForGrow(growCycles) + weakenCyclesForHack(hackCycles)
                 growCycles -= weakenCycles
-                hackCycles -= Math.ceil((weakenCyclesForHack(hackCycles) * 1.75) / 1.7)
+                hackCycles -= Math.ceil((weakenCyclesForHack(hackCycles) * ramToHack) / ramToHack)
 
                 growCycles = Math.max(0, growCycles)
             } else {
                 growCycles = 0
                 weakenCycles = weakenCyclesForHack(hackCycles)
-                hackCycles -= Math.ceil((weakenCycles * 1.75) / 1.7)
+                hackCycles -= Math.ceil((weakenCycles * ramToHack) / ramToWeaken)
             }
 
             pp(ns, `Cycles ratio: ${growCycles} grow cycles; ${weakenCycles} weaken cycles; ${hackCycles} hack cycles`)
@@ -240,7 +248,9 @@ export async function main(ns) {
             rootedServers
                 .map(host => serverMap.servers[host])
                 .forEach(server => {
-                    let cyclesFittable = Math.max(0, Math.floor(server.ram / 1.7))
+                    const growCyclesFittable = Math.max(0, Math.floor(server.ram / ramToGrow))
+                    const weakenCyclesFittable = Math.max(0, Math.floor(server.ram / ramToWeaken))
+                    let cyclesFittable = Math.min(growCyclesFittable, weakenCyclesFittable)
                     const cyclesToRun = Math.max(0, Math.min(cyclesFittable, hackCycles))
 
                     if (hackCycles) {
@@ -249,8 +259,8 @@ export async function main(ns) {
                         cyclesFittable -= cyclesToRun
                     }
 
-                    const freeRam = server.ram - cyclesToRun * 1.7
-                    cyclesFittable = Math.max(0, Math.floor(freeRam / 1.75))
+                    const freeRam = server.ram - cyclesToRun * ramToHack
+                    cyclesFittable = Math.max(0, Math.floor(freeRam / ramToHack))
 
                     if (cyclesFittable && growCycles) {
                         const growCyclesToRun = Math.min(growCycles, cyclesFittable)
