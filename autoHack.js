@@ -81,13 +81,13 @@ function weakenCyclesForHack(hackCycles) {
 }
 
 function createUUID() {
-  var dt = new Date().getTime()
-  var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    var r = (dt + Math.random() * 16) % 16 | 0
-    dt = Math.floor(dt / 16)
-    return (c == 'x' ? r : (r & 0x3) | 0x8).toString(16)
-  })
-  return uuid
+    var dt = new Date().getTime()
+    var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = (dt + Math.random() * 16) % 16 | 0
+        dt = Math.floor(dt / 16)
+        return (c == 'x' ? r : (r & 0x3) | 0x8).toString(16)
+    })
+    return uuid
 }
 
 /** @param {import(".").NS } ns */
@@ -113,6 +113,8 @@ export async function main(ns) {
         serverMap.servers.home.ram = Math.max(0, serverMap.servers.home.ram - settings().homeRamReserved)
 
         const rootedServers = getRootedServers(ns, serverMap.servers)
+        pp(ns, `RootedServers: ${JSON.stringify(rootedServers, null, 2)}`)
+
         const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
 
         const bestTarget = targetServers.shift()
@@ -140,21 +142,23 @@ export async function main(ns) {
         let hackCycles = 0
         let growCycles = 0
 
-        rootedServers.forEach(server => {
-            hackCycles += Math.floor(server.ram / 1.7)
-            growCycles += Math.floor(server.ram / 1.75)
-        })
+        rootedServers
+            .map(host => serverMap.servers[host])
+            .forEach(server => {
+                hackCycles += Math.floor(server.ram / 1.7)
+                growCycles += Math.floor(server.ram / 1.75)
+            })
 
         let weakenCycles = growCycles
 
         pp(ns, `Selected ${bestTarget} to ${action}. Will wake up around ${localeHHMMSS(new Date().getTime() + weakenTime + 300)}`)
-        pp(ns, `Stock values: baseSecurity ${serverMapTarget.baseSecurityLevel}; minSecurity ${serverMapTarget.minSecurityLevel};
- maxMoney: $${numberWithCommas(parseInt(serverMapTarget.maxMoney, 10))}`)
+        pp(ns, `Stock values: baseSecurity ${serverMapTarget.baseSecurityLevel}; minSecurity ${serverMapTarget.minSecurityLevel}; maxMoney: $${numberWithCommas(parseInt(serverMapTarget.maxMoney, 10))}`)
         pp(ns, `Current values: security ${Math.floor(securityLevel * 1000) / 1000}; money $${numberWithCommas(parseInt(money, 10))}`)
         pp(ns, `Time to: hack ${convertMSToHHMMSS(hackTime)}; grow ${convertMSToHHMMSS(growTime)}; weaken ${convertMSToHHMMSS(weakenTime)}`)
         pp(ns, `Delays: ${convertMSToHHMMSS(hackDelay)} for hacks, ${convertMSToHHMMSS(growDelay)} for grows`)
 
         if (action === 'weaken') {
+            pp(ns, "#Weaken action")
             if (settings().changes.weaken * weakenCycles > securityLevel - serverMapTarget.minSecurityLevel) {
                 weakenCycles = Math.ceil((securityLevel - serverMapTarget.minSecurityLevel) / settings().changes.weaken)
                 growCycles -= weakenCycles
@@ -169,42 +173,48 @@ export async function main(ns) {
 
             pp(ns, `Cycles ratio: ${growCycles} grow cycles; ${weakenCycles} weaken cycles; expected security reduction: ${Math.floor(settings().changes.weaken * weakenCycles * 1000) / 1000}`)
 
-            rootedServers.forEach(server => {
-                let cyclesFittable = Math.max(0, Math.floor(server.ram / 1.75))
-                const cyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
+            rootedServers
+                .map(host => serverMap.servers[host])
+                .forEach(server => {
+                    let cyclesFittable = Math.max(0, Math.floor(server.ram / 1.75))
+                    const cyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
 
-                if (growCycles) {
-                    ns.exec('grow.js', server.host, cyclesToRun, bestTarget, cyclesToRun, growDelay, createUUID())
-                    growCycles -= cyclesToRun
-                    cyclesFittable -= cyclesToRun
-                }
+                    pp(ns, `#Cycles for ${server}: grow ${cyclesToRun}, weaken ${cyclesFittable}`)
 
-                if (cyclesFittable) {
-                    ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
-                    weakenCycles -= cyclesFittable
-                }
-            })
+                    if (growCycles) {
+                        ns.exec('grow.js', server.host, cyclesToRun, bestTarget, cyclesToRun, growDelay, createUUID())
+                        growCycles -= cyclesToRun
+                        cyclesFittable -= cyclesToRun
+                    }
+
+                    if (cyclesFittable) {
+                        ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
+                        weakenCycles -= cyclesFittable
+                    }
+                })
         } else if (action === 'grow') {
             weakenCycles = weakenCyclesForGrow(growCycles)
             growCycles -= weakenCycles
 
             pp(ns, `Cycles ratio: ${growCycles} grow cycles; ${weakenCycles} weaken cycles`)
 
-            rootedServers.forEach(server => {
-                let cyclesFittable = Math.max(0, Math.floor(server.ram / 1.75))
-                const cyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
+            rootedServers
+                .map(host => serverMap.servers[host])
+                .forEach(server => {
+                    let cyclesFittable = Math.max(0, Math.floor(server.ram / 1.75))
+                    const cyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
 
-                if (growCycles) {
-                    ns.exec('grow.js', server.host, cyclesToRun, bestTarget, cyclesToRun, growDelay, createUUID())
-                    growCycles -= cyclesToRun
-                    cyclesFittable -= cyclesToRun
-                }
+                    if (growCycles) {
+                        ns.exec('grow.js', server.host, cyclesToRun, bestTarget, cyclesToRun, growDelay, createUUID())
+                        growCycles -= cyclesToRun
+                        cyclesFittable -= cyclesToRun
+                    }
 
-                if (cyclesFittable) {
-                    ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
-                    weakenCycles -= cyclesFittable
-                }
-            })
+                    if (cyclesFittable) {
+                        ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
+                        weakenCycles -= cyclesFittable
+                    }
+                })
         } else {
             if (hackCycles > serverMapTarget.fullHackCycles) {
                 hackCycles = serverMapTarget.fullHackCycles
@@ -228,32 +238,34 @@ export async function main(ns) {
 
             pp(ns, `Cycles ratio: ${growCycles} grow cycles; ${weakenCycles} weaken cycles; ${hackCycles} hack cycles`)
 
-            rootedServers.forEach(server => {
-                let cyclesFittable = Math.max(0, Math.floor(server.ram / 1.7))
-                const cyclesToRun = Math.max(0, Math.min(cyclesFittable, hackCycles))
+            rootedServers
+                .map(host => serverMap.servers[host])
+                .forEach(server => {
+                    let cyclesFittable = Math.max(0, Math.floor(server.ram / 1.7))
+                    const cyclesToRun = Math.max(0, Math.min(cyclesFittable, hackCycles))
 
-                if (hackCycles) {
-                    ns.exec('hack.js', server.host, cyclesToRun, bestTarget, cyclesToRun, hackDelay, createUUID())
-                    hackCycles -= cyclesToRun
-                    cyclesFittable -= cyclesToRun
-                }
+                    if (hackCycles) {
+                        ns.exec('hack.js', server.host, cyclesToRun, bestTarget, cyclesToRun, hackDelay, createUUID())
+                        hackCycles -= cyclesToRun
+                        cyclesFittable -= cyclesToRun
+                    }
 
-                const freeRam = server.ram - cyclesToRun * 1.7
-                cyclesFittable = Math.max(0, Math.floor(freeRam / 1.75))
+                    const freeRam = server.ram - cyclesToRun * 1.7
+                    cyclesFittable = Math.max(0, Math.floor(freeRam / 1.75))
 
-                if (cyclesFittable && growCycles) {
-                    const growCyclesToRun = Math.min(growCycles, cyclesFittable)
+                    if (cyclesFittable && growCycles) {
+                        const growCyclesToRun = Math.min(growCycles, cyclesFittable)
 
-                    ns.exec('grow.js', server.host, growCyclesToRun, bestTarget, growCyclesToRun, growDelay, createUUID())
-                    growCycles -= growCyclesToRun
-                    cyclesFittable -= growCyclesToRun
-                }
+                        ns.exec('grow.js', server.host, growCyclesToRun, bestTarget, growCyclesToRun, growDelay, createUUID())
+                        growCycles -= growCyclesToRun
+                        cyclesFittable -= growCyclesToRun
+                    }
 
-                if (cyclesFittable) {
-                    ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
-                    weakenCycles -= cyclesFittable
-                }
-            })
+                    if (cyclesFittable) {
+                        ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
+                        weakenCycles -= cyclesFittable
+                    }
+                })
         }
 
         await ns.sleep(weakenTime + 300)
