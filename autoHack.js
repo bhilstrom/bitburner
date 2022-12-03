@@ -127,8 +127,8 @@ export async function main(ns) {
         const weakenTime = ns.getWeakenTime(bestTarget)
         pp(ns, `Times: hack ${hackTime}; grow ${growTime}; weaken ${weakenTime}`)
 
-        const growDelay = Math.max(0, weakenTime - growTime - 15)
-        const hackDelay = Math.max(0, growTime + growDelay - hackTime - 15)
+        const growDelay = Math.max(0, weakenTime - growTime + 15)
+        const hackDelay = Math.max(0, growTime + growDelay - hackTime + 15)
         pp(ns, `Delays: hack ${hackDelay}; grow ${growDelay}`)
 
         const securityLevel = ns.getServerSecurityLevel(bestTarget)
@@ -157,7 +157,7 @@ export async function main(ns) {
 
         pp(ns, `Selected ${bestTarget} to ${action}. Will wake up around ${localeHHMMSS(new Date().getTime() + weakenTime + 300)}`)
         pp(ns, `Stock values: baseSecurity ${serverMapTarget.baseSecurityLevel}; minSecurity ${serverMapTarget.minSecurityLevel}; maxMoney: $${numberWithCommas(parseInt(serverMapTarget.maxMoney, 10))}`)
-        pp(ns, `Current values: security ${Math.floor(securityLevel * 1000) / 1000}; money $${numberWithCommas(parseInt(money, 10))}`)
+        pp(ns, `Current values: security ${securityLevel}}; money $${numberWithCommas(parseInt(money, 10))}`)
         pp(ns, `Time to: hack ${convertMSToHHMMSS(hackTime)}; grow ${convertMSToHHMMSS(growTime)}; weaken ${convertMSToHHMMSS(weakenTime)}`)
         pp(ns, `Delays: ${convertMSToHHMMSS(hackDelay)} for hacks, ${convertMSToHHMMSS(growDelay)} for grows`)
 
@@ -182,17 +182,17 @@ export async function main(ns) {
                     const growCyclesFittable = Math.max(0, Math.floor(server.ram / ramToGrow))
                     const weakenCyclesFittable = Math.max(0, Math.floor(server.ram / ramToWeaken))
                     let cyclesFittable = Math.min(growCyclesFittable, weakenCyclesFittable)
-                    const cyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
+                    const growCyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
 
                     pp(ns, `#Cycles for ${server.host}: grow ${cyclesToRun}, weaken ${cyclesFittable}`)
 
                     if (growCycles) {
-                        ns.exec('grow.js', server.host, cyclesToRun, bestTarget, cyclesToRun, growDelay, createUUID())
-                        growCycles -= cyclesToRun
-                        cyclesFittable -= cyclesToRun
+                        ns.exec('grow.js', server.host, growCyclesToRun, bestTarget, growCyclesToRun, growDelay, createUUID())
+                        growCycles -= growCyclesToRun
+                        cyclesFittable -= growCyclesToRun
                     }
 
-                    if (cyclesFittable) {
+                    if (cyclesFittable > 0) {
                         ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
                         weakenCycles -= cyclesFittable
                     }
@@ -209,12 +209,12 @@ export async function main(ns) {
                     const growCyclesFittable = Math.max(0, Math.floor(server.ram / ramToGrow))
                     const weakenCyclesFittable = Math.max(0, Math.floor(server.ram / ramToWeaken))
                     let cyclesFittable = Math.min(growCyclesFittable, weakenCyclesFittable)
-                    const cyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
+                    const growCyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
 
                     if (growCycles) {
-                        ns.exec('grow.js', server.host, cyclesToRun, bestTarget, cyclesToRun, growDelay, createUUID())
-                        growCycles -= cyclesToRun
-                        cyclesFittable -= cyclesToRun
+                        ns.exec('grow.js', server.host, growCyclesToRun, bestTarget, growCyclesToRun, growDelay, createUUID())
+                        growCycles -= growCyclesToRun
+                        cyclesFittable -= growCyclesToRun
                     }
 
                     if (cyclesFittable) {
@@ -230,11 +230,11 @@ export async function main(ns) {
                     hackCycles *= 10
                 }
 
-                growCycles = Math.max(0, growCycles - Math.ceil((hackCycles * ramToHack) / ramToGrow))
+                growCycles = Math.max(0, growCycles - Math.ceil((hackCycles * 1.75) / 1.7))
 
                 weakenCycles = weakenCyclesForGrow(growCycles) + weakenCyclesForHack(hackCycles)
                 growCycles -= weakenCycles
-                hackCycles -= Math.ceil((weakenCyclesForHack(hackCycles) * ramToHack) / ramToHack)
+                hackCycles -= Math.ceil((weakenCyclesForHack(hackCycles) * 1.75) / 1.7)
 
                 growCycles = Math.max(0, growCycles)
             } else {
@@ -256,7 +256,6 @@ export async function main(ns) {
                     if (hackCycles) {
                         ns.exec('hack.js', server.host, cyclesToRun, bestTarget, cyclesToRun, hackDelay, createUUID())
                         hackCycles -= cyclesToRun
-                        cyclesFittable -= cyclesToRun
                     }
 
                     const freeRam = server.ram - cyclesToRun * ramToHack
