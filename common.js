@@ -20,7 +20,7 @@ export function getItem(key) {
     return item ? JSON.parse(item) : undefined
 }
 
-function localeHHMMSS(ms = 0) {
+export function localeHHMMSS(ms = 0) {
     if (!ms) {
         ms = new Date().getTime()
     }
