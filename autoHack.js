@@ -80,6 +80,16 @@ function weakenCyclesForHack(hackCycles) {
     return Math.max(0, Math.ceil(hackCycles * (settings().changes.hack / settings().changes.weaken)))
 }
 
+function createUUID() {
+  var dt = new Date().getTime()
+  var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    var r = (dt + Math.random() * 16) % 16 | 0
+    dt = Math.floor(dt / 16)
+    return (c == 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+  return uuid
+}
+
 /** @param {import(".").NS } ns */
 export async function main(ns) {
     pp(ns, "Starting autoHack.js")
@@ -107,7 +117,7 @@ export async function main(ns) {
 
         const bestTarget = targetServers.shift()
         const hackTime = ns.getHackTime(bestTarget) * 1000
-        const growtTime = ns.getGrowTime(bestTarget) * 1000
+        const growTime = ns.getGrowTime(bestTarget) * 1000
         const weakenTime = ns.getWeakenTime(bestTarget) * 1000
 
         const growDelay = Math.max(0, weakenTime - growTime - 15 * 1000)
