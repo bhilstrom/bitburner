@@ -1,24 +1,29 @@
 /** @param {import(".").NS } ns */
 import { settings, setItem, pp } from 'common.js'
 
+/** @param {import(".").NS } ns */
 function brute(ns, host) {
-  ns.brute(host);
+  ns.brutessh(host)
 }
 
+/** @param {import(".").NS } ns */
 function ftpcrack(ns, host) {
-  ns.ftpcrack(host);
+  ns.ftpcrack(host)
 }
 
+/** @param {import(".").NS } ns */
 function relaySMTP(ns, host) {
-  ns.relaySMTP(host);
+  ns.relaysmtp(host)
 }
 
+/** @param {import(".").NS } ns */
 function httpWorm(ns, host) {
-  ns.httpWorm(host);
+  ns.httpworm(host)
 }
 
+/** @param {import(".").NS } ns */
 function sqlInject(ns, host) {
-  ns.sqlInject(host);
+  ns.sqlinject(host)
 }
 
 const hackPrograms = [
@@ -49,7 +54,7 @@ function getPlayerDetails(ns) {
 
   hackPrograms.forEach((hackProgram) => {
     if (ns.fileExists(hackProgram.name, 'home')) {
-      pp(ns, `Found hack program ${hackProgram}`)
+      pp(ns, `Found hack program ${hackProgram.name}`)
       portHacks += 1
     }
   })
@@ -75,12 +80,12 @@ export async function main(ns) {
 
   const serverMap = { servers: {}, lastUpdate: new Date().getTime() }
   const scanArray = ['home']
-  
+
 
   while (scanArray.length) {
     const host = scanArray.shift()
 
-    pp(ns, "Getting details for " + host)
+    pp(ns, `Processing ${host}...`)
 
     serverMap.servers[host] = {
       host,
@@ -94,15 +99,20 @@ export async function main(ns) {
     }
 
     if (!ns.hasRootAccess(host)) {
-      pp(ns, `Missing root on ${host}`)
+      const neededPorts = serverMap.servers[host].ports
+      const neededHackingLevel = serverMap.servers[host].hackingLevel
 
-      if (serverMap.servers[host].ports <= playerDetails.portHacks && serverMap.servers[host].hackingLevel <= playerDetails.hackingLevel) {
+      pp(ns, `Missing root on ${host}. Need ${neededPorts - playerDetails.portHacks} ports, ${neededHackingLevel - playerDetails.hackingLevel} Hack`)
+
+      if (neededPorts <= playerDetails.portHacks && neededHackingLevel <= playerDetails.hackingLevel) {
         pp(ns, `Gaining root on ${host}`)
         hackPrograms.forEach((hackProgram) => {
+          pp(ns, `Running ${hackProgram.name}...`)
           hackProgram.exe(ns, host)
         })
+        pp(ns, `Nuking...`)
         ns.nuke(host)
-        pp(ns, `${host} nuked`)
+        pp(ns, `${host} nuked!`)
       }
     }
 
@@ -173,13 +183,10 @@ export async function main(ns) {
 
   setItem(settings().keys.serverMap, serverMap)
 
-  pp(ns, `Server map: ${serverMap}`)
-
-  // if (!scriptToRunAfter) {
-  //   ns.tprint(`[${localeHHMMSS()}] Spawning mainHack.js`)
-  //   ns.spawn('mainHack.js', 1)
-  // } else {
-  //   ns.tprint(`[${localeHHMMSS()}] Spawning ${scriptToRunAfter}`)
-  //   ns.spawn(scriptToRunAfter, 1)
-  // }
+  if (scriptToRunAfter) {
+    pp(ns, `Spawning ${scriptToRunAfter}`)
+    ns.spawn(scriptToRunAfter, 1)
+  } else {
+    pp(ns, `Done`)
+  }
 }
