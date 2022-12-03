@@ -102,7 +102,7 @@ export async function main(ns) {
       const neededPorts = serverMap.servers[host].ports
       const neededHackingLevel = serverMap.servers[host].hackingLevel
 
-      pp(ns, `Missing root on ${host}. Need ${neededPorts - playerDetails.portHacks} ports, ${neededHackingLevel - playerDetails.hackingLevel} Hack`)
+      pp(ns, `Missing root on ${host}. Need ${neededPorts - playerDetails.programs.length} ports, ${neededHackingLevel - playerDetails.hackingLevel} Hack`)
 
       if (neededPorts <= playerDetails.programs.length && neededHackingLevel <= playerDetails.hackingLevel) {
         pp(ns, `Gaining root on ${host}`)
