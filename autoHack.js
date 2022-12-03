@@ -1,4 +1,4 @@
-import { localeHHMMSS, settings, getItem, pp } from 'common.js'
+import { localeHHMMSS, settings, getItem, pp } from './common.js'
 
 const hackingScripts = ['hack.js', 'grow.js', 'weaken.js', 'common.js']
 

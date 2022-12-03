@@ -1,4 +1,4 @@
-import { settings, getItem, pp } from 'common.js'
+import { settings, getItem, pp } from './common.js'
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {

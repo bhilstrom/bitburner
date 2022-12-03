@@ -1,5 +1,4 @@
-/** @param {import(".").NS } ns */
-import { settings, setItem, pp } from 'common.js'
+import { settings, setItem, pp } from './common.js'
 
 /** @param {import(".").NS } ns */
 function brute(ns, host) {
