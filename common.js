@@ -2,14 +2,24 @@
 
 export function settings() {
     return {
-        minSecurityLevelOffset: 2,
+        homeRamReserved: 20,
+        homeRamReservedBase: 20,
+        homeRamExtraRamReserved: 12,
+        homeRamBigMode: 64,
+        minSecurityLevelOffset: 1,
         maxMoneyMultiplayer: 0.9,
         minSecurityWeight: 100,
         mapRefreshInterval: 2 * 60 * 60 * 1000, // 2 hours
+        maxWeakenTime: 30 * 60 * 1000, // 30 minutes
         keys: {
             serverMap: 'BB_SERVER_MAP',
             hackTarget: 'BB_HACK_TARGET',
             action: 'BB_ACTION',
+        },
+        changes: {
+          hack: 0.002,
+          grow: 0.004,
+          weaken: 0.05,
         },
     }
 }
