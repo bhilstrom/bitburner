@@ -11,12 +11,9 @@ function getRootedServers(ns, servers) {
         .filter((hostname) => servers[hostname].ram >= 2)
 
     // Copy hacking scripts to rooted servers
-    for (const hostname of rootServers) {
-        if (hostname === "home") {
-            continue
-        }
-        ns.scp(hackingScripts)
-    }
+    rootServers
+        .filter(hostname => hostname !== "home")
+        .forEach(hostname => ns.scp(hackingScripts, hostname))
 
     rootServers.sort((a, b) => servers[a].ram - servers[b].ram)
     return rootServers
