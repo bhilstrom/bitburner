@@ -1,12 +1,55 @@
-import { settings, setItem } from 'common.js'
+/** @param {import(".").NS } ns */
+import { settings, setItem, pp } from 'common.js'
 
-const hackPrograms = ['BruteSSH.exe', 'FTPCrack.exe', 'relaySMTP.exe', 'HTTPWorm.exe', 'SQLInject.exe']
+function brute(ns, host) {
+  ns.brute(host);
+}
+
+function ftpcrack(ns, host) {
+  ns.ftpcrack(host);
+}
+
+function relaySMTP(ns, host) {
+  ns.relaySMTP(host);
+}
+
+function httpWorm(ns, host) {
+  ns.httpWorm(host);
+}
+
+function sqlInject(ns, host) {
+  ns.sqlInject(host);
+}
+
+const hackPrograms = [
+  {
+    name: 'BruteSSH.exe',
+    exe: brute,
+  },
+  {
+    name: 'FTPCrack.exe',
+    exe: ftpcrack,
+  },
+  {
+    name: 'relaySMTP.exe',
+    exe: relaySMTP,
+  },
+  {
+    name: 'HTTPWorm.exe',
+    exe: httpWorm,
+  },
+  {
+    name: 'SQLInject.exe',
+    exe: sqlInject,
+  }
+]
 
 function getPlayerDetails(ns) {
   let portHacks = 0
 
   hackPrograms.forEach((hackProgram) => {
-    if (ns.fileExists(hackProgram, 'home')) {
+    if (ns.fileExists(hackProgram.name, 'home')) {
+      pp(`Found hack program ${hackProgram}`)
       portHacks += 1
     }
   })
@@ -16,16 +59,9 @@ function getPlayerDetails(ns) {
     portHacks,
   }
 }
-function localeHHMMSS(ms = 0) {
-  if (!ms) {
-    ms = new Date().getTime()
-  }
-
-  return new Date(ms).toLocaleTimeString()
-}
 
 export async function main(ns) {
-  ns.tprint(`[${localeHHMMSS()}] Starting spider.js`)
+  pp(ns, "Starting spider.js")
 
   const scriptToRunAfter = ns.args[0]
 
@@ -35,11 +71,16 @@ export async function main(ns) {
     throw new Exception('Run the script from home')
   }
 
+  const playerDetails = getPlayerDetails(ns)
+
   const serverMap = { servers: {}, lastUpdate: new Date().getTime() }
   const scanArray = ['home']
+  
 
   while (scanArray.length) {
     const host = scanArray.shift()
+
+    pp(ns, "Getting details for " + host)
 
     serverMap.servers[host] = {
       host,
@@ -48,20 +89,20 @@ export async function main(ns) {
       maxMoney: ns.getServerMaxMoney(host),
       growth: ns.getServerGrowth(host),
       minSecurityLevel: ns.getServerMinSecurityLevel(host),
-      baseSecurityLevel: ns.getServerBaseSecurityLevel(host),
       ram: ns.getServerRam(host)[0],
       files: ns.ls(host),
     }
 
-    const playerDetails = getPlayerDetails(ns)
     if (!ns.hasRootAccess(host)) {
+      pp(`Missing root on ${host}`)
+
       if (serverMap.servers[host].ports <= playerDetails.portHacks && serverMap.servers[host].hackingLevel <= playerDetails.hackingLevel) {
+        pp(`Gaining root on ${host}`)
         hackPrograms.forEach((hackProgram) => {
-          if (ns.fileExists(hackProgram, 'home')) {
-            ns[hackProgram.split('.').shift().toLocaleLowerCase()](host)
-          }
+          hackProgram.exe(ns, host)
         })
         ns.nuke(host)
+        pp(`${host} nuked`)
       }
     }
 
@@ -132,11 +173,13 @@ export async function main(ns) {
 
   setItem(settings().keys.serverMap, serverMap)
 
-  if (!scriptToRunAfter) {
-    ns.tprint(`[${localeHHMMSS()}] Spawning mainHack.js`)
-    ns.spawn('mainHack.js', 1)
-  } else {
-    ns.tprint(`[${localeHHMMSS()}] Spawning ${scriptToRunAfter}`)
-    ns.spawn(scriptToRunAfter, 1)
-  }
+  pp(ns, `Server map: ${serverMap}`)
+
+  // if (!scriptToRunAfter) {
+  //   ns.tprint(`[${localeHHMMSS()}] Spawning mainHack.js`)
+  //   ns.spawn('mainHack.js', 1)
+  // } else {
+  //   ns.tprint(`[${localeHHMMSS()}] Spawning ${scriptToRunAfter}`)
+  //   ns.spawn(scriptToRunAfter, 1)
+  // }
 }
