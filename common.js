@@ -10,7 +10,7 @@ export function settings() {
         maxMoneyMultiplayer: 0.9,
         minSecurityWeight: 100,
         mapRefreshInterval: 2 * 60 * 60 * 1000, // 2 hours
-        maxWeakenTime: 30 * 60 * 1000, // 30 minutes
+        maxWeakenTime: 10 * 60 * 1000, // 10 minutes
         keys: {
             serverMap: 'BB_SERVER_MAP',
             hackTarget: 'BB_HACK_TARGET',

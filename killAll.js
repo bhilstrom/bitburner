@@ -14,7 +14,7 @@ export async function main(ns) {
 
     if (!serverMap || serverMap.lastUpdate < new Date().getTime() - settings().mapRefreshInterval) {
         pp(ns, "Server refresh needed, spawning spider")
-        ns.spawn("spider.js", 1, "autoHack.js")
+        ns.spawn("spider.js", 1, "killAll.js")
         ns.exit()
         return
     }

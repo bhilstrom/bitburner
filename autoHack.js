@@ -118,25 +118,25 @@ export async function main(ns) {
         const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
 
         const bestTarget = targetServers.shift()
-        const hackTime = ns.getHackTime(bestTarget) * 1000
-        const growTime = ns.getGrowTime(bestTarget) * 1000
-        const weakenTime = ns.getWeakenTime(bestTarget) * 1000
+        const hackTime = ns.getHackTime(bestTarget)
+        const growTime = ns.getGrowTime(bestTarget)
+        const weakenTime = ns.getWeakenTime(bestTarget)
+        pp(ns, `Times: hack ${hackTime}; grow ${growTime}; weaken ${weakenTime}`)
 
-        const growDelay = Math.max(0, weakenTime - growTime - 15 * 1000)
-        const hackDelay = Math.max(0, growTime + growDelay - hackTime - 15 * 1000)
+        const growDelay = Math.max(0, weakenTime - growTime - 15)
+        const hackDelay = Math.max(0, growTime + growDelay - hackTime - 15)
+        pp(ns, `Delays: hack ${hackDelay}; grow ${growDelay}`)
 
         const securityLevel = ns.getServerSecurityLevel(bestTarget)
         const money = ns.getServerMoneyAvailable(bestTarget)
 
         const serverMapTarget = serverMap.servers[bestTarget]
 
-        let action = 'weaken'
+        let action = 'hack'
         if (securityLevel > serverMapTarget.minSecurityLevel + settings().minSecurityLevelOffset) {
             action = 'weaken'
         } else if (money < serverMapTarget.maxMoney * settings().maxMoneyMultiplayer) {
             action = 'grow'
-        } else {
-            action = 'hack'
         }
 
         let hackCycles = 0
@@ -158,7 +158,6 @@ export async function main(ns) {
         pp(ns, `Delays: ${convertMSToHHMMSS(hackDelay)} for hacks, ${convertMSToHHMMSS(growDelay)} for grows`)
 
         if (action === 'weaken') {
-            pp(ns, "#Weaken action")
             if (settings().changes.weaken * weakenCycles > securityLevel - serverMapTarget.minSecurityLevel) {
                 weakenCycles = Math.ceil((securityLevel - serverMapTarget.minSecurityLevel) / settings().changes.weaken)
                 growCycles -= weakenCycles
