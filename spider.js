@@ -49,7 +49,7 @@ function getPlayerDetails(ns) {
 
   hackPrograms.forEach((hackProgram) => {
     if (ns.fileExists(hackProgram.name, 'home')) {
-      pp(`Found hack program ${hackProgram}`)
+      pp(ns, `Found hack program ${hackProgram}`)
       portHacks += 1
     }
   })
@@ -94,15 +94,15 @@ export async function main(ns) {
     }
 
     if (!ns.hasRootAccess(host)) {
-      pp(`Missing root on ${host}`)
+      pp(ns, `Missing root on ${host}`)
 
       if (serverMap.servers[host].ports <= playerDetails.portHacks && serverMap.servers[host].hackingLevel <= playerDetails.hackingLevel) {
-        pp(`Gaining root on ${host}`)
+        pp(ns, `Gaining root on ${host}`)
         hackPrograms.forEach((hackProgram) => {
           hackProgram.exe(ns, host)
         })
         ns.nuke(host)
-        pp(`${host} nuked`)
+        pp(ns, `${host} nuked`)
       }
     }
 
