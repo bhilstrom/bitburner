@@ -50,18 +50,18 @@ const hackPrograms = [
 ]
 
 function getPlayerDetails(ns) {
-  let portHacks = 0
+  const programs = []
 
   hackPrograms.forEach((hackProgram) => {
     if (ns.fileExists(hackProgram.name, 'home')) {
       pp(ns, `Found hack program ${hackProgram.name}`)
-      portHacks += 1
+      programs.push(hackProgram)
     }
   })
 
   return {
     hackingLevel: ns.getHackingLevel(),
-    portHacks,
+    programs
   }
 }
 
@@ -104,12 +104,12 @@ export async function main(ns) {
 
       pp(ns, `Missing root on ${host}. Need ${neededPorts - playerDetails.portHacks} ports, ${neededHackingLevel - playerDetails.hackingLevel} Hack`)
 
-      if (neededPorts <= playerDetails.portHacks && neededHackingLevel <= playerDetails.hackingLevel) {
+      if (neededPorts <= playerDetails.programs.length && neededHackingLevel <= playerDetails.hackingLevel) {
         pp(ns, `Gaining root on ${host}`)
-        hackPrograms.forEach((hackProgram) => {
-          pp(ns, `Running ${hackProgram.name}...`)
-          hackProgram.exe(ns, host)
-        })
+        playerDetails.programs.forEach(hackProgram => {
+            pp(ns, `Running ${hackProgram.name}...`)
+            hackProgram.exe(ns, host)
+          })
         pp(ns, `Nuking...`)
         ns.nuke(host)
         pp(ns, `${host} nuked!`)
