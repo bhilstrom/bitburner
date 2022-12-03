@@ -184,7 +184,7 @@ export async function main(ns) {
                     let cyclesFittable = Math.min(growCyclesFittable, weakenCyclesFittable)
                     const growCyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
 
-                    pp(ns, `#Cycles for ${server.host}: grow ${cyclesToRun}, weaken ${cyclesFittable}`)
+                    pp(ns, `#Cycles for ${server.host}: grow ${growCyclesToRun}, weaken ${cyclesFittable}`)
 
                     if (growCycles) {
                         ns.exec('grow.js', server.host, growCyclesToRun, bestTarget, growCyclesToRun, growDelay, createUUID())
