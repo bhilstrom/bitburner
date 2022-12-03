@@ -1,6 +1,6 @@
 import { localeHHMMSS, settings, getItem, pp } from 'common.js'
 
-const hackingScripts = ['hack.js', 'grow.js', 'weaken.js']
+const hackingScripts = ['hack.js', 'grow.js', 'weaken.js', 'common.js']
 
 /** @param {import(".").NS } ns */
 function getRootedServers(ns, servers) {
