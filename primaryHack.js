@@ -183,9 +183,11 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
 
     // Distribute batches across rooted servers
     let longestRunningScript = 0
-    while (fullBatch.length > 0) {
-        // Always get the first item. We remove batches from the fullBatch when we're done processing them.
-        const batch = fullBatch[0]
+
+    for (let batchIndex = 0; batchIndex < fullBatch.length; batchIndex++) {
+
+        const batch = fullBatch[batchIndex]
+
         pp(ns, `Batch: ${JSON.stringify(batch, null, 2)}`)
 
         const maxActionTime = Math.max.apply(Math, batch.actions.map(action => actionStats[action].time))
@@ -207,58 +209,76 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
         - When moving to the next batch item, sleep for the max batch item runtime so we know the batches happened in order
         */
 
-        rootedServers
-            .map(host => serverMap.servers[host])
-            .every(server => {
+        for (let actionIndex = 0; actionIndex < batch.actions.length; actionIndex++) {
+            const action = batch.actions[actionIndex]
 
-                for (let actionIndex = 0; actionIndex < batch.actions.length; actionIndex++) {
-                    const action = batch.actions[actionIndex]
-                    pp(ns, `Processing ${action} action on ${server.host}`)
+            let actionThreads = batch.threads
 
-                    // pp(ns, `Server: ${JSON.stringify(server, null, 2)}`)
+            while (actionThreads > 0) {
+                rootedServers
+                    .map(host => serverMap.servers[host])
+                    .every(server => {
+                        pp(ns, `Processing ${action} action on ${server.host}`)
 
-                    // Get number of threads to spawn on the current server
-                    const availableRam = server.ram - ns.getServerUsedRam(server.host)
-                    const availableThreads = Math.floor(availableRam / batchRamCost)
-                    const numThreads = Math.min(availableThreads, batch.threads)
-                    // pp(ns, `RAM available: ${availableRam}. Threads: available ${availableThreads}, desired ${batch.threads}, will execute ${numThreads}`)
+                        // pp(ns, `Server: ${JSON.stringify(server, null, 2)}`)
 
-                    if (numThreads > 0) {
-                        // pp(ns, `batchItem: ${JSON.stringify(batchItem, null, 2)}`)
-                        // pp(ns, `actionStats: ${JSON.stringify(actionStats, null, 2)}`)
+                        // Get number of threads to spawn on the current server
+                        const availableRam = server.ram - ns.getServerUsedRam(server.host)
+                        const availableThreads = Math.floor(availableRam / actionStats[action].ram)
+                        const numThreads = Math.min(availableThreads, actionThreads)
+                        pp(ns, `RAM available: ${availableRam}. Threads: available ${availableThreads}, desired ${actionThreads}, will execute ${numThreads}`)
 
-                        // Add actionIndex to the script delay so they will finish in action declaration order
-                        const scriptDelay = Math.ceil(maxActionTime - actionStats[action].time) + actionIndex
+                        if (numThreads > 0) {
+                            // pp(ns, `batchItem: ${JSON.stringify(batchItem, null, 2)}`)
+                            // pp(ns, `actionStats: ${JSON.stringify(actionStats, null, 2)}`)
 
-                        longestRunningScript = Math.max(longestRunningScript, actionStats[action].time)
+                            // Add actionIndex to the script delay so they will finish in action declaration order
+                            const scriptDelay = Math.ceil(maxActionTime - actionStats[action].time) + actionIndex
 
-                        pp(ns, `Assigning ${server.host} to ${action} ${target} with ${numThreads} threads and ${scriptDelay} delay`)
-                        ns.exec(actionStats[action].script, server.host, numThreads, target, numThreads, scriptDelay, createUUID())
-                    }
+                            longestRunningScript = Math.max(longestRunningScript, actionStats[action].time)
 
-                    // Update number of desired threads remaining
-                    batch.threads -= numThreads
+                            pp(ns, `Assigning ${server.host} to ${action} ${target} with ${numThreads} threads and ${scriptDelay} delay`)
+                            ns.exec(actionStats[action].script, server.host, numThreads, target, numThreads, scriptDelay, createUUID())
+                        }
+
+                        // Update number of desired threads remaining for the current action
+                        actionThreads -= numThreads
+                        pp(ns, `Action threads remaining: ${actionThreads}`)
+                        // await ns.sleep(100)
+
+                        return actionThreads > 0 // If falsy, will stop looping over rootedServers
+                    })
+
+                pp(ns, `Sleep check`)
+                await ns.sleep(100)
+
+                // There are no running servers left that can process the actions.
+                // Sleep for the length of the action, then check the same action again.
+                if (actionThreads > 0) {
+                    const sleepTime = actionStats[action].time + 10
+                    pp(ns, `Ran out of servers, ${actionThreads} ${action} actions remain. Sleeping for ${sleepTime}`)
+                    await ns.sleep(sleepTime)
                 }
-
-                return batch.threads > 0 // If falsy, will stop looping over rootedServers
-            })
-
-        // We have now been through the entire batch and run as much as we can on the servers.
-        // If anything is left, we need to wait for the longest running script to complete.
-        // const itemWithMore = batch.find(batchItem => batchItem.threads > 0)
-        if (batch.threads > 0) {
-            const sleepTime = Math.ceil(longestRunningScript + 100)
-            pp(ns, `Sleeping for ${(sleepTime / 1000 / 60).toFixed(2)} minutes before starting batch with ${JSON.stringify(batch.actions, null, 2)} for ${batch.threads} threads`)
-            await ns.sleep(sleepTime)
-        } else {
-            // Nothing is left to process in the current batch, so we can move to the next one.
-            fullBatch.shift()
-            pp(ns, `### Batch complete, ${fullBatch.length} batches remaining`)
+            }
         }
 
-        // pp(ns, "Sleeping inside fullBatch loop")
-        // await ns.sleep(3000)
+        // // We have now been through the entire batch and run as much as we can on the servers.
+        // // If anything is left, we need to wait for the longest running script to complete.
+        // // const itemWithMore = batch.find(batchItem => batchItem.threads > 0)
+        // if (batch.threads > 0) {
+        //     const sleepTime = Math.ceil(longestRunningScript + 100)
+        //     pp(ns, `Sleeping for ${(sleepTime / 1000 / 60).toFixed(2)} minutes before starting batch with ${JSON.stringify(batch.actions, null, 2)} for ${batch.threads} threads`)
+        //     await ns.sleep(sleepTime)
+        // } else {
+        //     // Nothing is left to process in the current batch, so we can move to the next one.
+        //     fullBatch.shift()
+        // }
+
+        pp(ns, `### Batch ${batchIndex} complete, ${fullBatch.length - batchIndex - 1} batches remaining`)
     }
+
+    // pp(ns, "Sleeping inside fullBatch loop")
+    // await ns.sleep(3000)
 }
 
 /** @param {import(".").NS } ns */
@@ -335,14 +355,14 @@ export async function main(ns) {
         await processBatch(ns, hackBatch, rootedServers, actionStats, serverMap, bestTarget)
 
         // If all of our rooted servers are full, sleep.
-        if (!rootedServers.some(rootedServer => (serverMap.servers[rootedServer].ram - ns.getServerUsedRam(rootedServer)) > maxRamRequired)) {
-            const maxExecuteTime = Math.max.apply(Math, Object.keys(actionStats).map(stat => actionStats[stat].time))
-            const sleepTime = Math.ceil(maxExecuteTime + 1000)
-            pp(ns, `No more rooted servers available, sleeping for ${sleepTime}`)
-            await ns.sleep(sleepTime)
-        }
+        // if (!rootedServers.some(rootedServer => (serverMap.servers[rootedServer].ram - ns.getServerUsedRam(rootedServer)) > maxRamRequired)) {
+        //     const maxExecuteTime = Math.max.apply(Math, Object.keys(actionStats).map(stat => actionStats[stat].time))
+        //     const sleepTime = Math.ceil(maxExecuteTime + 1000)
+        //     pp(ns, `No more rooted servers available, sleeping for ${sleepTime}`)
+        //     await ns.sleep(sleepTime)
+        // }
 
-        pp(ns, "Running through again after 1 second...")
-        await ns.sleep(1000)
+        pp(ns, "Running through again after pause...")
+        await ns.sleep(100)
     }
 }
