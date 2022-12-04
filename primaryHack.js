@@ -136,17 +136,25 @@ function getSetupBatch(ns, host) {
         })
     }
 
-    const maxMoney = ns.getServerMaxMoney(host) * settings().maxMoneyMultiplayer
-    const currentMoney = ns.getServerMoneyAvailable(host)
-    const growthsNeeded = Math.max(0, Math.ceil(ns.growthAnalyze(host, (maxMoney - currentMoney))))
-    pp(ns, `${host} needs ${growthsNeeded} growths to go from ${currentMoney} to ${maxMoney}`)
+    const maxMoney = Math.ceil(ns.getServerMaxMoney(host) * settings().maxMoneyMultiplayer)
+    const currentMoney = Math.ceil(ns.getServerMoneyAvailable(host))
 
-    batch.push(
-        {
-            threads: growthsNeeded,
-            actions: ['grow', 'weaken']
-        }
-    )
+    // Take max of 0 and (max - current) in case we have more money available than the target
+    const moneyGrowthWanted = Math.max(0, maxMoney - currentMoney)
+    // pp(ns, `${host} has ${currentMoney} curret money and ${maxMoney} target max money. Growth: ${moneyGrowthWanted}`)
+    if (moneyGrowthWanted > 0) {
+        const growthsNeeded = Math.ceil(ns.growthAnalyze(host, moneyGrowthWanted))
+        pp(ns, `${host} needs ${growthsNeeded} growths to go from ${currentMoney} to ${maxMoney}`)
+
+        batch.push(
+            {
+                threads: growthsNeeded,
+                actions: ['grow', 'weaken']
+            }
+        )
+    } else {
+        pp(ns, `${host} is already at max money. No growth needed.`)
+    }
 
     // pp(ns, `Setup batch: ${JSON.stringify(batch, null, 2)}`)
 
@@ -203,11 +211,9 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
             .map(host => serverMap.servers[host])
             .every(server => {
 
-                let actionIndex = 0
-                while (actionIndex < batch.actions.length) {
-
+                for (let actionIndex = 0; actionIndex < batch.actions.length; actionIndex++) {
                     const action = batch.actions[actionIndex]
-                    pp(ns, `Action ${action}`)
+                    pp(ns, `Processing ${action} action on ${server.host}`)
 
                     // pp(ns, `Server: ${JSON.stringify(server, null, 2)}`)
 
@@ -215,7 +221,7 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
                     const availableRam = server.ram - ns.getServerUsedRam(server.host)
                     const availableThreads = Math.floor(availableRam / batchRamCost)
                     const numThreads = Math.min(availableThreads, batch.threads)
-                    pp(ns, `Threads: available ${availableThreads}, desired ${batch.threads}, will execute ${numThreads}`)
+                    pp(ns, `RAM available: ${availableRam}. Threads: available ${availableThreads}, desired ${batch.threads}, will execute ${numThreads}`)
 
                     if (numThreads > 0) {
                         // pp(ns, `batchItem: ${JSON.stringify(batchItem, null, 2)}`)
@@ -230,16 +236,10 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
                         ns.exec(actionStats[action].script, server.host, numThreads, target, numThreads, scriptDelay, createUUID())
                     }
 
-                    // We are either out of rootedServers or out of desired threads.
-                    // In either case, we should move to the next batch index.
-                    // In the case where we're out of threads, this means we should continue using servers.
-                    // If we're out of servers, there may still be ram free on servers for the other items in the batch
-                    // (i.e., current batch item ram > later batch item ram)
-                    actionIndex += 1
+                    // Update number of desired threads remaining
+                    batch.threads -= numThreads
                 }
 
-                // Update number of desired threads remaining
-                batch.threads -= numThreads
                 return batch.threads > 0 // If falsy, will stop looping over rootedServers
             })
 
