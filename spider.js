@@ -48,6 +48,7 @@ const hackPrograms = [
   }
 ]
 
+/** @param {import(".").NS } ns */
 function getPlayerDetails(ns) {
   const programs = []
 
@@ -64,6 +65,7 @@ function getPlayerDetails(ns) {
   }
 }
 
+/** @param {import(".").NS } ns */
 export async function main(ns) {
   pp(ns, "Starting spider.js")
 
@@ -93,7 +95,7 @@ export async function main(ns) {
       maxMoney: ns.getServerMaxMoney(host),
       growth: ns.getServerGrowth(host),
       minSecurityLevel: ns.getServerMinSecurityLevel(host),
-      ram: ns.getServerRam(host)[0],
+      ram: ns.getServerMaxRam(host),
       files: ns.ls(host),
     }
 
