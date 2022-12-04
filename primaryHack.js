@@ -51,7 +51,7 @@ function findWeightedTargetServers(ns, rootedServers, servers, serverExtraData) 
     })
 
     weightedServers.sort((a, b) => b.serverValue - a.serverValue)
-    pp(ns, `Weighted servers: ${JSON.stringify(weightedServers, null, 2)}`)
+    // pp(ns, `Weighted servers: ${JSON.stringify(weightedServers, null, 2)}`)
 
     return weightedServers.map((server) => server.hostname)
 }
@@ -97,16 +97,21 @@ function getWeakenThreadsForMinimum(ns, host) {
     const minSecurity = ns.getServerMinSecurityLevel(host)
 
     let threads = 0
-    let newSecurity = Number.MAX_SAFE_INTEGER
+    let newSecurity = currentSecurity
+
+    // We need this to enable backtracking
+    let oldSecurity = newSecurity
 
     // Double estimated threads each time
     while (newSecurity > minSecurity) {
-        threads = Math.min(1, threads * 2)
+        threads = Math.max(1, threads * 2)
+        oldSecurity = newSecurity
         newSecurity = currentSecurity - ns.weakenAnalyze(threads)
     }
 
     // Threads was increased above threshold, put it back
     threads = Math.floor(threads / 2)
+    newSecurity = oldSecurity
 
     // Count up from here
     while (newSecurity > minSecurity) {
@@ -132,7 +137,7 @@ function getSetupBatch(ns, host) {
 
     const maxMoney = ns.getServerMaxMoney(host) * settings().maxMoneyMultiplayer
     const currentMoney = ns.getServerMoneyAvailable(host)
-    const growthsNeeded = Math.min(0, Math.ceil(ns.growthAnalyze(host, (maxMoney - currentMoney))))
+    const growthsNeeded = Math.max(0, Math.ceil(ns.growthAnalyze(host, (maxMoney - currentMoney))))
     pp(ns, `${host} needs ${growthsNeeded} growths to go from ${currentMoney} to ${maxMoney}`)
 
     batch.push(
@@ -154,23 +159,31 @@ function getSetupBatch(ns, host) {
 /** @param {import(".").NS } ns */
 function getHackBatch(ns, host) {
     return [
-        {
-            action: 'grow',
-            threads: 1
-        },
-        {
-            action: 'weaken',
-            threads: 2
-        },
-        {
-            action: 'hack',
-            threads: 1
-        }
+        [
+            {
+                action: 'grow',
+                threads: 1
+            },
+            {
+                action: 'weaken',
+                threads: 1
+            },
+        ],
+        [
+            {
+                action: 'hack',
+                threads: 1
+            },
+            {
+                action: 'weaken',
+                threads: 1
+            },
+        ]
     ]
 }
 
 /** @param {import(".").NS } ns */
-async function processBatch(ns, fullBatch, rootedServers, actionStats) {
+async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap, target) {
     pp(ns, `##### Processing ${fullBatch.length} batches`)
 
     // Distribute batches across rooted servers
@@ -179,12 +192,14 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats) {
         const batch = fullBatch[0]
 
         let batchIndex = 0
-        let longestRunningScript = Number.MIN_SAFE_INTEGER
+        let longestRunningScript = 0
         while (batchIndex < batch.length) {
             const batchItem = batch[batchIndex]
             rootedServers
                 .map(host => serverMap.servers[host])
                 .every(server => {
+
+                    // pp(ns, `Server: ${JSON.stringify(server, null, 2)}`)
 
                     // Get number of threads to spawn on the current server
                     const availableRam = server.ram - ns.getServerUsedRam(server.host)
@@ -193,7 +208,8 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats) {
 
                     if (numThreads > 0) {
                         longestRunningScript = Math.max(longestRunningScript, actionStats[batchItem.action].time)
-                        ns.exec(actionStats[batchItem.action].script, server.host, numThreads, bestTarget, numThreads, 0, createUUID())
+                        pp(ns, `Assigning ${server.host} to ${batchItem.action} ${target} with ${numThreads} threads`)
+                        ns.exec(actionStats[batchItem.action].script, server.host, numThreads, target, numThreads, 0, createUUID())
                     }
 
                     // Update number of desired threads remaining
@@ -207,20 +223,26 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats) {
             // If we're out of servers, there may still be ram free on servers for the other items in the batch
             // (i.e., current batch item ram > later batch item ram)
             batchIndex += 1
+
+            // pp(ns, "Sleeping inside batchIndex loop")
+            // await ns.sleep(3000)
         }
 
         // We have now been through the entire batch and run as much as we can on the servers.
         // If anything is left, we need to wait for the longest running script to complete.
         const itemWithMore = batch.find(batchItem => batchItem.threads > 0)
         if (itemWithMore) {
-            const sleepTime = longestRunningScript + 100
-            pp(ns, `Sleeping for ${sleepTime} to wait for ${itemWithMore.action} to complete`)
+            const sleepTime = Math.ceil(longestRunningScript + 100)
+            pp(ns, `Sleeping for ${(sleepTime / 1000 / 60).toFixed(2)} minutes before starting ${itemWithMore.action} for ${itemWithMore.threads} threads`)
             await ns.sleep(sleepTime)
         } else {
             // Nothing is left to process in the current batch, so we can move to the next one.
             fullBatch.shift()
             pp(ns, `### Batch complete, ${fullBatch.length} batches remaining`)
         }
+
+        // pp(ns, "Sleeping inside fullBatch loop")
+        // await ns.sleep(3000)
     }
 }
 
@@ -241,32 +263,30 @@ function getTimeForAction(ns, host, action) {
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
-    pp(ns, "Starting autoHack.js")
+    pp(ns, "Starting primaryHack.js")
 
     if (ns.getHostname() !== 'home') {
         throw new Exception('Must be run from home')
     }
 
-    const ramToHack = ns.getScriptRam('hack.js')
-    const ramToGrow = ns.getScriptRam('grow.js')
-    const ramToWeaken = ns.getScriptRam('weaken.js')
-
     const actionStats = {
         grow: {
-            script: 'grow.js'
+            script: 'grow.js',
         },
         weaken: {
-            script: 'weaken.js'
+            script: 'weaken.js',
         },
         hack: {
-            script: 'hack.js'
+            script: 'hack.js',
         }
     }
 
     // Add ram cost for each action
-    actionStats.forEach(action => {
-        action.ram = ns.getScriptRam(action.script)
+    Object.keys(actionStats).forEach(action => {
+        actionStats[action].ram = ns.getScriptRam(actionStats[action].script)
     })
+
+    const maxRamRequired = Math.max(Object.keys(actionStats).map(stat => actionStats[stat].ram))
 
     while (true) {
         const serverExtraData = {}
@@ -275,7 +295,7 @@ export async function main(ns) {
 
         if (!serverMap || serverMap.lastUpdate < new Date().getTime() - settings().mapRefreshInterval) {
             pp(ns, "Server refresh needed, spawning spider")
-            ns.spawn("spider.js", 1, "autoHack.js")
+            ns.spawn("spider.js", 1, "primaryHack.js")
             ns.exit()
             return
         }
@@ -288,172 +308,25 @@ export async function main(ns) {
         const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
         const bestTarget = targetServers.shift()
 
-        actionStats.forEach(action => {
-            action.time = getTimeForAction(ns, bestTarget, action.script)
+        Object.keys(actionStats).forEach(action => {
+            actionStats[action].time = getTimeForAction(ns, bestTarget, action)
         })
 
         const setupBatch = getSetupBatch(ns, bestTarget)
-        await processBatch(ns, setupBatch, rootedServers, actionStats)
+        await processBatch(ns, setupBatch, rootedServers, actionStats, serverMap, bestTarget)
 
         const hackBatch = getHackBatch(ns, bestTarget)
-        await processBatch(ns, hackBatch, rootedServers, actionStats)
+        await processBatch(ns, hackBatch, rootedServers, actionStats, serverMap, bestTarget)
 
-        // const hackTime = ns.getHackTime(bestTarget)
-        // const growTime = ns.getGrowTime(bestTarget)
-        // const weakenTime = ns.getWeakenTime(bestTarget)
-        // pp(ns, `Times: hack ${hackTime}; grow ${growTime}; weaken ${weakenTime}`)
+        // If we can't run anything on any remaining server, we're done.
+        if (!rootedServers.any(rootedServer => ns.getServerUsedRam(rootedServer) > maxRamRequired)) {
+            const maxExecuteTime = Math.max(Object.keys(actionStats).map(stat => actionStats[stat].time))
+            const sleepTime = Math.ceil(maxExecuteTime + 1000)
+            pp(ns, `No more rooted servers available, sleeping for ${sleepTime}`)
+            await ns.sleep(sleepTime)
+        }
 
-
-
-        // const growDelay = Math.max(0, weakenTime - growTime + 15)
-        // const hackDelay = Math.max(0, growTime + growDelay - hackTime + 15)
-        // pp(ns, `Delays: hack ${hackDelay}; grow ${growDelay}`)
-
-        // const securityLevel = ns.getServerSecurityLevel(bestTarget)
-        // const money = ns.getServerMoneyAvailable(bestTarget)
-
-        // const serverMapTarget = serverMap.servers[bestTarget]
-
-        // let action = 'hack'
-        // if (securityLevel > serverMapTarget.minSecurityLevel + settings().minSecurityLevelOffset) {
-        //     action = 'weaken'
-        // } else if (money < serverMapTarget.maxMoney * settings().maxMoneyMultiplayer) {
-        //     action = 'grow'
-        // }
-
-        // let hackCycles = 0
-        // let growCycles = 0
-
-        // rootedServers
-        //     .map(host => serverMap.servers[host])
-        //     .forEach(server => {
-        //         hackCycles += Math.floor(server.ram / ramToHack)
-        //         growCycles += Math.floor(server.ram / ramToGrow)
-        //     })
-
-        // let weakenCycles = growCycles
-
-        // pp(ns, `Selected ${bestTarget} to ${action}. Will wake up around ${localeHHMMSS(new Date().getTime() + weakenTime + 300)}`)
-        // pp(ns, `Stock values: baseSecurity ${serverMapTarget.baseSecurityLevel}; minSecurity ${serverMapTarget.minSecurityLevel}; maxMoney: $${numberWithCommas(parseInt(serverMapTarget.maxMoney, 10))}`)
-        // pp(ns, `Current values: security ${securityLevel}}; money $${numberWithCommas(parseInt(money, 10))}`)
-        // pp(ns, `Time to: hack ${convertMSToHHMMSS(hackTime)}; grow ${convertMSToHHMMSS(growTime)}; weaken ${convertMSToHHMMSS(weakenTime)}`)
-        // pp(ns, `Delays: ${convertMSToHHMMSS(hackDelay)} for hacks, ${convertMSToHHMMSS(growDelay)} for grows`)
-
-        // if (action === 'weaken') {
-        //     if (settings().changes.weaken * weakenCycles > securityLevel - serverMapTarget.minSecurityLevel) {
-        //         weakenCycles = Math.ceil((securityLevel - serverMapTarget.minSecurityLevel) / settings().changes.weaken)
-        //         growCycles -= weakenCycles
-        //         growCycles = Math.max(0, growCycles)
-
-        //         weakenCycles += weakenCyclesForGrow(growCycles)
-        //         growCycles -= weakenCyclesForGrow(growCycles)
-        //         growCycles = Math.max(0, growCycles)
-        //     } else {
-        //         growCycles = 0
-        //     }
-
-        //     pp(ns, `Cycles ratio: ${growCycles} grow cycles; ${weakenCycles} weaken cycles; expected security reduction: ${Math.floor(settings().changes.weaken * weakenCycles * 1000) / 1000}`)
-
-        //     rootedServers
-        //         .map(host => serverMap.servers[host])
-        //         .forEach(server => {
-        //             const growCyclesFittable = Math.max(0, Math.floor(server.ram / ramToGrow))
-        //             const weakenCyclesFittable = Math.max(0, Math.floor(server.ram / ramToWeaken))
-        //             let cyclesFittable = Math.min(growCyclesFittable, weakenCyclesFittable)
-        //             const growCyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
-
-        //             pp(ns, `#Cycles for ${server.host}: grow ${growCyclesToRun}, weaken ${cyclesFittable}`)
-
-        //             if (growCycles) {
-        //                 ns.exec('grow.js', server.host, growCyclesToRun, bestTarget, growCyclesToRun, growDelay, createUUID())
-        //                 growCycles -= growCyclesToRun
-        //                 cyclesFittable -= growCyclesToRun
-        //             }
-
-        //             if (cyclesFittable > 0) {
-        //                 ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
-        //                 weakenCycles -= cyclesFittable
-        //             }
-        //         })
-        // } else if (action === 'grow') {
-        //     weakenCycles = weakenCyclesForGrow(growCycles)
-        //     growCycles -= weakenCycles
-
-        //     pp(ns, `Cycles ratio: ${growCycles} grow cycles; ${weakenCycles} weaken cycles`)
-
-        //     rootedServers
-        //         .map(host => serverMap.servers[host])
-        //         .forEach(server => {
-        //             const growCyclesFittable = Math.max(0, Math.floor(server.ram / ramToGrow))
-        //             const weakenCyclesFittable = Math.max(0, Math.floor(server.ram / ramToWeaken))
-        //             let cyclesFittable = Math.min(growCyclesFittable, weakenCyclesFittable)
-        //             const growCyclesToRun = Math.max(0, Math.min(cyclesFittable, growCycles))
-
-        //             if (growCycles) {
-        //                 ns.exec('grow.js', server.host, growCyclesToRun, bestTarget, growCyclesToRun, growDelay, createUUID())
-        //                 growCycles -= growCyclesToRun
-        //                 cyclesFittable -= growCyclesToRun
-        //             }
-
-        //             if (cyclesFittable) {
-        //                 ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
-        //                 weakenCycles -= cyclesFittable
-        //             }
-        //         })
-        // } else {
-        //     if (hackCycles > serverMapTarget.fullHackCycles) {
-        //         hackCycles = serverMapTarget.fullHackCycles
-
-        //         if (hackCycles * 100 < growCycles) {
-        //             hackCycles *= 10
-        //         }
-
-        //         growCycles = Math.max(0, growCycles - Math.ceil((hackCycles * 1.75) / 1.7))
-
-        //         weakenCycles = weakenCyclesForGrow(growCycles) + weakenCyclesForHack(hackCycles)
-        //         growCycles -= weakenCycles
-        //         hackCycles -= Math.ceil((weakenCyclesForHack(hackCycles) * 1.75) / 1.7)
-
-        //         growCycles = Math.max(0, growCycles)
-        //     } else {
-        //         growCycles = 0
-        //         weakenCycles = weakenCyclesForHack(hackCycles)
-        //         hackCycles -= Math.ceil((weakenCycles * ramToHack) / ramToWeaken)
-        //     }
-
-        //     pp(ns, `Cycles ratio: ${growCycles} grow cycles; ${weakenCycles} weaken cycles; ${hackCycles} hack cycles`)
-
-        //     rootedServers
-        //         .map(host => serverMap.servers[host])
-        //         .forEach(server => {
-        //             const growCyclesFittable = Math.max(0, Math.floor(server.ram / ramToGrow))
-        //             const weakenCyclesFittable = Math.max(0, Math.floor(server.ram / ramToWeaken))
-        //             let cyclesFittable = Math.min(growCyclesFittable, weakenCyclesFittable)
-        //             const cyclesToRun = Math.max(0, Math.min(cyclesFittable, hackCycles))
-
-        //             if (hackCycles) {
-        //                 ns.exec('hack.js', server.host, cyclesToRun, bestTarget, cyclesToRun, hackDelay, createUUID())
-        //                 hackCycles -= cyclesToRun
-        //             }
-
-        //             const freeRam = server.ram - cyclesToRun * ramToHack
-        //             cyclesFittable = Math.max(0, Math.floor(freeRam / ramToHack))
-
-        //             if (cyclesFittable && growCycles) {
-        //                 const growCyclesToRun = Math.min(growCycles, cyclesFittable)
-
-        //                 ns.exec('grow.js', server.host, growCyclesToRun, bestTarget, growCyclesToRun, growDelay, createUUID())
-        //                 growCycles -= growCyclesToRun
-        //                 cyclesFittable -= growCyclesToRun
-        //             }
-
-        //             if (cyclesFittable) {
-        //                 ns.exec('weaken.js', server.host, cyclesFittable, bestTarget, cyclesFittable, 0, createUUID())
-        //                 weakenCycles -= cyclesFittable
-        //             }
-        //         })
-        // }
-
-        // await ns.sleep(weakenTime + 300)
+        pp(ns, "Running through again after 5 seconds...")
+        await ns.sleep(5000)
     }
 }
