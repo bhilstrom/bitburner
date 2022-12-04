@@ -179,7 +179,7 @@ function getHackBatch(ns, host) {
 async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap, target) {
     pp(ns, `### Processing ${fullBatch.length} batch(es)`)
 
-    pp(ns, `actionStats: ${JSON.stringify(actionStats, null, 2)}`)
+    // pp(ns, `actionStats: ${JSON.stringify(actionStats, null, 2)}`)
 
     // Distribute batches across rooted servers
     let longestRunningScript = 0
@@ -188,13 +188,13 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
         const batch = fullBatch[0]
         pp(ns, `Batch: ${JSON.stringify(batch, null, 2)}`)
 
-        const maxActionTime = Math.max(batch.actions.map(action => actionStats[action].time))
+        const maxActionTime = Math.max.apply(Math, batch.actions.map(action => actionStats[action].time))
         pp(ns, `Longest running script in this batch is ${maxActionTime}`)
 
         const batchRamCost = batch.actions.reduce((accumulator, action) => {
             return accumulator + actionStats[action].ram
         }, 0)
-        pp(ns, `RAM usage for one batch is ${batchRamCost}`)
+        // pp(ns, `RAM usage for one batch is ${batchRamCost}`)
 
         /* TODO:
         - Get max script time in this batch item
@@ -221,7 +221,7 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
                     const availableRam = server.ram - ns.getServerUsedRam(server.host)
                     const availableThreads = Math.floor(availableRam / batchRamCost)
                     const numThreads = Math.min(availableThreads, batch.threads)
-                    pp(ns, `RAM available: ${availableRam}. Threads: available ${availableThreads}, desired ${batch.threads}, will execute ${numThreads}`)
+                    // pp(ns, `RAM available: ${availableRam}. Threads: available ${availableThreads}, desired ${batch.threads}, will execute ${numThreads}`)
 
                     if (numThreads > 0) {
                         // pp(ns, `batchItem: ${JSON.stringify(batchItem, null, 2)}`)
@@ -334,15 +334,15 @@ export async function main(ns) {
         const hackBatch = getHackBatch(ns, bestTarget)
         await processBatch(ns, hackBatch, rootedServers, actionStats, serverMap, bestTarget)
 
-        // If we can't run anything on any remaining server, we're done.
-        if (!rootedServers.any(rootedServer => ns.getServerUsedRam(rootedServer) > maxRamRequired)) {
-            const maxExecuteTime = Math.max(Object.keys(actionStats).map(stat => actionStats[stat].time))
+        // If all of our rooted servers are full, sleep.
+        if (!rootedServers.some(rootedServer => (serverMap.servers[rootedServer].ram - ns.getServerUsedRam(rootedServer)) > maxRamRequired)) {
+            const maxExecuteTime = Math.max.apply(Math, Object.keys(actionStats).map(stat => actionStats[stat].time))
             const sleepTime = Math.ceil(maxExecuteTime + 1000)
             pp(ns, `No more rooted servers available, sleeping for ${sleepTime}`)
             await ns.sleep(sleepTime)
         }
 
-        pp(ns, "Running through again after 5 seconds...")
-        await ns.sleep(5000)
+        pp(ns, "Running through again after 1 second...")
+        await ns.sleep(1000)
     }
 }
