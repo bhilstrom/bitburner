@@ -38,13 +38,14 @@ export function localeHHMMSS(ms = 0) {
     return new Date(ms).toLocaleTimeString()
 }
 
+/** @param {import(".").NS } ns */
 export function pp(ns, str, showOnMainScreen = false) {
 
     str = `[${localeHHMMSS()}] ${str}`
     if (showOnMainScreen) {
-        ns.print(str)
-    } else {
         ns.tprint(str)
+    } else {
+        ns.print(str)
     }
 }
 
