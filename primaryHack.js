@@ -294,6 +294,7 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
                     const sleepTime = lastBatchItem.delay + actionStats[lastBatchItem.name].time + bufferMs 
                     pp(ns, `All servers full, ${batch.threads - threadCount} threads remaining. Sleeping for ${sleepTime / 1000 / 60} minutes`)
                     await ns.sleep(sleepTime)
+                    pp(ns, `Resuming batch: ${JSON.stringify(batch.actions, null, 2)}`)
                     // pp(ns, `Looking for server to run ${action} against ${target}`)
                     currentServer = findServerForScript(ns, rootedServers, serverMap, action.name, actionStats)
                 }
@@ -334,7 +335,7 @@ export async function main(ns) {
     pp(ns, "Starting primaryHack.js")
 
     if (ns.getHostname() !== 'home') {
-        throw new Exception('Must be run from home')
+        throw new Error('Must be run from home')
     }
 
     const actionStats = {
