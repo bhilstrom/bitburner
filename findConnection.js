@@ -25,7 +25,13 @@ export async function main(ns) {
 
     pp(ns, `Looking for path to ${target}`)
     if (!serverMap.servers[target]) {
-        throw new Error(`${target} not found. Server map: ${JSON.stringify(serverMap, null, 2)}`)
+
+        const lowerCaseTarget = target.toLowerCase()
+        const possibleServers = Object.keys(serverMap.servers)
+            .filter(host => host.toLowerCase().includes(lowerCaseTarget))
+
+        pp(ns, `${target} not found. Targets containing '${target}': ${JSON.stringify(possibleServers, null, 2)}`)
+        ns.exit()
     }
 
     let connectionString = ''
