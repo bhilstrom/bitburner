@@ -86,7 +86,7 @@ function getServer(ns, host) {
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
-  pp(ns, "Starting spider.js")
+  pp(ns, "Starting spider.js", true)
 
   const scriptToRunAfter = ns.args[0]
 
@@ -124,7 +124,7 @@ export async function main(ns) {
           })
         pp(ns, `Nuking...`)
         ns.nuke(host)
-        pp(ns, `${host} nuked!`)
+        pp(ns, `${host} nuked!`, true)
       }
     }
 
@@ -196,9 +196,9 @@ export async function main(ns) {
   setItem(settings().keys.serverMap, serverMap)
 
   if (scriptToRunAfter) {
-    pp(ns, `Spawning ${scriptToRunAfter}`)
+    pp(ns, `Spawning ${scriptToRunAfter}`, true)
     ns.spawn(scriptToRunAfter, 1, ...ns.args.slice(1))
   } else {
-    pp(ns, `Done`)
+    pp(ns, `Done`, true)
   }
 }

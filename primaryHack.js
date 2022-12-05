@@ -292,7 +292,7 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
                 while (!currentServer) {
                     const lastBatchItem = batch.actions[batch.actions.length - 1]
                     const sleepTime = lastBatchItem.delay + actionStats[lastBatchItem.name].time + bufferMs 
-                    pp(ns, `All servers full, ${batch.threads - threadCount} threads remaining. Sleeping for ${sleepTime / 1000 / 60} minutes`)
+                    pp(ns, `All servers full, ${batch.threads - threadCount} threads remaining. Sleeping for ${sleepTime / 1000 / 60} minutes`, true)
                     await ns.sleep(sleepTime)
                     pp(ns, `Resuming batch: ${JSON.stringify(batch.actions, null, 2)}`)
                     // pp(ns, `Looking for server to run ${action} against ${target}`)
@@ -332,7 +332,7 @@ function getTimeForAction(ns, host, action) {
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
-    pp(ns, "Starting primaryHack.js")
+    pp(ns, "Starting primaryHack.js", true)
 
     if (ns.getHostname() !== 'home') {
         throw new Error('Must be run from home')

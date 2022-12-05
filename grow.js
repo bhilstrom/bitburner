@@ -7,11 +7,11 @@ export async function main(ns) {
     const delay = ns.args[2]
 
     if (delay && delay > 0) {
-        ns.print(`Sleeping for ${delay}`)
+       pp(ns, `Sleeping for ${delay}`)
         await ns.sleep(delay)
     }
 
-    ns.print(`Starting operation: grow on ${target} in ${threads} threads`)
+    pp(ns, `Starting operation: grow on ${target} in ${threads} threads`)
     await ns.grow(target, { threads, stock: true })
     ns.exit()
 }

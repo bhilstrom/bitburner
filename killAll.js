@@ -2,18 +2,18 @@ import { settings, getItem, pp } from './common.js'
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
-    pp(ns, "Starting killAll.js")
+    pp(ns, "Starting killAll.js", true)
 
     let hostname = ns.getHostname()
 
     if (hostname !== 'home') {
-        throw new Exception('Run the script from home')
+        throw new Error('Run the script from home')
     }
 
     const serverMap = getItem(settings().keys.serverMap)
 
     if (!serverMap || serverMap.lastUpdate < new Date().getTime() - settings().mapRefreshInterval) {
-        pp(ns, "Server refresh needed, spawning spider")
+        pp(ns, "Server refresh needed, spawning spider", true)
         ns.spawn("spider.js", 1, "killAll.js")
         ns.exit()
         return
@@ -27,5 +27,5 @@ export async function main(ns) {
         ns.killall(hostname, true)
     })
 
-    pp(ns, "All processes killed")
+    pp(ns, "All processes killed", true)
 }
