@@ -197,7 +197,7 @@ export async function main(ns) {
 
   if (scriptToRunAfter) {
     pp(ns, `Spawning ${scriptToRunAfter}`)
-    ns.spawn(scriptToRunAfter, 1)
+    ns.spawn(scriptToRunAfter, 1, ...ns.args.slice(1))
   } else {
     pp(ns, `Done`)
   }
