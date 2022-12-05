@@ -166,11 +166,7 @@ function getHackBatch(ns, host) {
     return [
         {
             threads: 1,
-            actions: ['grow', 'weaken']
-        },
-        {
-            threads: 1,
-            actions: ['hack', 'weaken']
+            actions: ['hack', 'weaken', 'grow', 'weaken']
         }
     ]
 }
@@ -213,24 +209,33 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
 
         pp(ns, `Batch: ${JSON.stringify(batch, null, 2)}`)
 
-        const maxActionTime = Math.max.apply(Math, batch.actions.map(action => actionStats[action].time))
+        // const maxActionTime = Math.max.apply(Math, batch.actions.map(action => actionStats[action].time))
         // pp(ns, `Longest running script in this batch is ${maxActionTime}`)
 
         const minActionTime = Math.min.apply(Math, batch.actions.map(action => actionStats[action].time))
         // pp(ns, `Shortest running script in this batch is ${minActionTime}`)
 
-        const batchRamCost = batch.actions.reduce((accumulator, action) => {
-            return accumulator + actionStats[action].ram
-        }, 0)
+        // const batchRamCost = batch.actions.reduce((accumulator, action) => {
+        //     return accumulator + actionStats[action].ram
+        // }, 0)
         // pp(ns, `RAM usage for one batch is ${batchRamCost}`)
 
         for (let threadCount = 0; threadCount < batch.threads; threadCount++) {
 
             let currentServer = null
+            let previousAction = null
             for (let actionIndex = 0; actionIndex < batch.actions.length; actionIndex++) {
                 const action = batch.actions[actionIndex]
-                const scriptDelay = Math.ceil(maxActionTime - actionStats[action].time) + actionIndex
-                longestRunningScript = Math.max(longestRunningScript, actionStats[action].time)
+
+                // Set script delay so the scripts finish in order
+                let scriptDelay = 0
+                if (previousAction) {
+                    scriptDelay = Math.max(0, actionStats[previousAction].time - actionStats[action].time + 2)
+                    // pp(ns, `${previousAction} will take ${actionStats[previousAction].time}, ${action} will take ${actionStats[action].time}, delaying for ${scriptDelay}`)
+                }
+
+                // const scriptDelay = Math.ceil(maxActionTime - actionStats[action].time) + (actionIndex * 5)
+                // longestRunningScript = Math.max(longestRunningScript, actionStats[action].time)
 
                 if (!canRunAction(ns, currentServer, action, actionStats)) {
                     // pp(ns, `Looking for server to run ${action} against ${target}`)
@@ -248,6 +253,8 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
                 // pp(ns, `Assigning ${currentServer.host} to ${action} ${target} with ${scriptDelay} delay`)
                 ns.exec(actionStats[action].script, currentServer.host, 1, target, 1, scriptDelay, createUUID())
                 await ns.sleep(1)
+
+                previousAction = action
             }
         }
 
