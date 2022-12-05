@@ -1,4 +1,4 @@
-import { localeHHMMSS, settings, getItem, pp } from './common.js'
+import { settings, getItem, pp } from './common.js'
 
 const hackingScripts = ['hack.js', 'grow.js', 'weaken.js', 'common.js']
 
@@ -72,14 +72,6 @@ function convertMSToHHMMSS(ms = 0) {
     return new Date(ms).toISOString().substr(11, 8)
 }
 
-function weakenCyclesForGrow(growCycles) {
-    return Math.max(0, Math.ceil(growCycles * (settings().changes.grow / settings().changes.weaken)))
-}
-
-function weakenCyclesForHack(hackCycles) {
-    return Math.max(0, Math.ceil(hackCycles * (settings().changes.hack / settings().changes.weaken)))
-}
-
 function createUUID() {
     var dt = new Date().getTime()
     var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -132,7 +124,11 @@ function getSetupBatch(ns, host) {
     if (weakenThreadsForMinimum > 0) {
         batch.push({
             threads: weakenThreadsForMinimum,
-            actions: ['weaken']
+            actions: [
+                {
+                    name: 'weaken'
+                }
+            ]
         })
     }
 
@@ -149,7 +145,14 @@ function getSetupBatch(ns, host) {
         batch.push(
             {
                 threads: growthsNeeded,
-                actions: ['grow', 'weaken']
+                actions: [
+                    {
+                        name: 'grow'
+                    },
+                    {
+                        name: 'weaken'
+                    }
+                ]
             }
         )
     } else {
@@ -166,7 +169,26 @@ function getHackBatch(ns, host) {
     return [
         {
             threads: 1,
-            actions: ['hack', 'weaken', 'grow', 'weaken']
+            actions: [
+                {
+                    name: 'hack'
+                },
+                {
+                    name: 'weaken'
+                },
+                {
+                    name: 'grow'
+                },
+                {
+                    name: 'weaken'
+                },
+                {
+                    name: 'grow'
+                },
+                {
+                    name: 'weaken'
+                }
+            ]
         }
     ]
 }
@@ -196,23 +218,48 @@ function findServerForScript(ns, rootedServers, serverMap, action, actionStats) 
 
 /** @param {import(".").NS } ns */
 async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap, target) {
-    pp(ns, `### Processing ${fullBatch.length} batch(es)`)
+    // pp(ns, `### Processing ${fullBatch.length} batch(es)`)
 
     // pp(ns, `actionStats: ${JSON.stringify(actionStats, null, 2)}`)
 
     // Distribute batches across rooted servers
-    let longestRunningScript = 0
-
     for (let batchIndex = 0; batchIndex < fullBatch.length; batchIndex++) {
 
         const batch = fullBatch[batchIndex]
 
-        pp(ns, `Batch: ${JSON.stringify(batch, null, 2)}`)
+        // pp(ns, `Batch: ${JSON.stringify(batch, null, 2)}`)
 
-        // const maxActionTime = Math.max.apply(Math, batch.actions.map(action => actionStats[action].time))
+        // Set up the delays for the actions in the batch
+        // 1. Find the first longest-running script
+        // 2. Count up from there, make every script finish later than the one before it
+        // 3. Count down from there, make every script finish earlier than the one before it
+        let firstLongestIndex = 0
+        for (let i = 0; i < batch.actions.length; i++) {
+            if (actionStats[batch.actions[i].name].time > actionStats[batch.actions[firstLongestIndex].name].time) {
+                firstLongestIndex = i
+            }
+        }
+
+        const longestActionTime = actionStats[batch.actions[firstLongestIndex].name].time
+        batch.actions[firstLongestIndex].delay = 0
+
+        // pp(ns, `First longest index is ${firstLongestIndex}`)
+        const bufferMs = 200
+        for (let i = firstLongestIndex + 1; i < batch.actions.length; i++) {
+            const bufferDelay = (i - firstLongestIndex) * bufferMs
+            batch.actions[i].delay = longestActionTime - actionStats[batch.actions[i].name].time + bufferDelay
+        }
+        for (let i = firstLongestIndex - 1; i >= 0; i--) {
+            const bufferDelay = (firstLongestIndex - i) * bufferMs
+            batch.actions[i].delay = longestActionTime - actionStats[batch.actions[i].name].time - bufferDelay
+        }
+
+        // pp(ns, `Batch: ${JSON.stringify(batch, null, 2)}`)
+
+        // const maxActionTime = Math.max.apply(Math, batch.actions.map(action => actionStats[action.name].time))
         // pp(ns, `Longest running script in this batch is ${maxActionTime}`)
 
-        const minActionTime = Math.min.apply(Math, batch.actions.map(action => actionStats[action].time))
+        // const minActionTime = Math.min.apply(Math, batch.actions.map(action => actionStats[action.name].time))
         // pp(ns, `Shortest running script in this batch is ${minActionTime}`)
 
         // const batchRamCost = batch.actions.reduce((accumulator, action) => {
@@ -223,42 +270,44 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
         for (let threadCount = 0; threadCount < batch.threads; threadCount++) {
 
             let currentServer = null
-            let previousAction = null
+            // let previousActionName = null
             for (let actionIndex = 0; actionIndex < batch.actions.length; actionIndex++) {
                 const action = batch.actions[actionIndex]
 
                 // Set script delay so the scripts finish in order
-                let scriptDelay = 0
-                if (previousAction) {
-                    scriptDelay = Math.max(0, actionStats[previousAction].time - actionStats[action].time + 2)
-                    // pp(ns, `${previousAction} will take ${actionStats[previousAction].time}, ${action} will take ${actionStats[action].time}, delaying for ${scriptDelay}`)
-                }
+                // let scriptDelay = 0
+                // if (previousActionName) {
+                //     scriptDelay = Math.max(0, actionStats[previousActionName].time - actionStats[action.name].time + 2)
+                //     // pp(ns, `${previousAction} will take ${actionStats[previousAction].time}, ${action} will take ${actionStats[action].time}, delaying for ${scriptDelay}`)
+                // }
 
                 // const scriptDelay = Math.ceil(maxActionTime - actionStats[action].time) + (actionIndex * 5)
                 // longestRunningScript = Math.max(longestRunningScript, actionStats[action].time)
 
-                if (!canRunAction(ns, currentServer, action, actionStats)) {
+                if (!canRunAction(ns, currentServer, action.name, actionStats)) {
                     // pp(ns, `Looking for server to run ${action} against ${target}`)
-                    currentServer = findServerForScript(ns, rootedServers, serverMap, action, actionStats)
+                    currentServer = findServerForScript(ns, rootedServers, serverMap, action.name, actionStats)
                 }
 
                 while (!currentServer) {
-                    pp(ns, `All servers full, sleeping for ${minActionTime / 1000 / 60} minutes`)
-                    await ns.sleep(minActionTime)
+                    const lastBatchItem = batch.actions[batch.actions.length - 1]
+                    const sleepTime = lastBatchItem.delay + actionStats[lastBatchItem.name].time + bufferMs 
+                    pp(ns, `All servers full, ${batch.threads - threadCount} threads remaining. Sleeping for ${sleepTime / 1000 / 60} minutes`)
+                    await ns.sleep(sleepTime)
                     // pp(ns, `Looking for server to run ${action} against ${target}`)
-                    currentServer = findServerForScript(ns, rootedServers, serverMap, action, actionStats)
+                    currentServer = findServerForScript(ns, rootedServers, serverMap, action.name, actionStats)
                 }
 
                 // currentServer can run action
                 // pp(ns, `Assigning ${currentServer.host} to ${action} ${target} with ${scriptDelay} delay`)
-                ns.exec(actionStats[action].script, currentServer.host, 1, target, 1, scriptDelay, createUUID())
+                ns.exec(actionStats[action.name].script, currentServer.host, 1, target, 1, action.delay, createUUID())
                 await ns.sleep(1)
 
-                previousAction = action
+                // previousAction = action
             }
         }
 
-        pp(ns, `### Batch ${batchIndex} complete, ${fullBatch.length - batchIndex - 1} batches remaining`)
+        // pp(ns, `### Batch ${batchIndex} complete, ${fullBatch.length - batchIndex - 1} batches remaining`)
     }
 
     // pp(ns, "Sleeping inside fullBatch loop")
