@@ -245,8 +245,9 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
                 }
 
                 // currentServer can run action
-                pp(ns, `Assigning ${currentServer.host} to ${action} ${target} with ${scriptDelay} delay`)
+                // pp(ns, `Assigning ${currentServer.host} to ${action} ${target} with ${scriptDelay} delay`)
                 ns.exec(actionStats[action].script, currentServer.host, 1, target, 1, scriptDelay, createUUID())
+                await ns.sleep(1)
             }
         }
 
