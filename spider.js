@@ -66,6 +66,25 @@ function getPlayerDetails(ns) {
 }
 
 /** @param {import(".").NS } ns */
+function getServer(ns, host) {
+
+  const server = ns.getServer(host)
+
+  return {
+    host,
+    ports: server.numOpenPortsRequired,
+    hackingLevel: server.requiredHackingSkill,
+    maxMoney: server.moneyMax,
+    growth: server.serverGrowth,
+    minSecurityLevel: server.minDifficulty,
+    ram: server.maxRam,
+    files: ns.ls(host),
+    backdoorInstalled: server.backdoorInstalled,
+    hasRootAccess: server.hasAdminRights
+  }
+}
+
+/** @param {import(".").NS } ns */
 export async function main(ns) {
   pp(ns, "Starting spider.js")
 
@@ -88,20 +107,12 @@ export async function main(ns) {
 
     pp(ns, `Processing ${host}...`)
 
-    serverMap.servers[host] = {
-      host,
-      ports: ns.getServerNumPortsRequired(host),
-      hackingLevel: ns.getServerRequiredHackingLevel(host),
-      maxMoney: ns.getServerMaxMoney(host),
-      growth: ns.getServerGrowth(host),
-      minSecurityLevel: ns.getServerMinSecurityLevel(host),
-      ram: ns.getServerMaxRam(host),
-      files: ns.ls(host),
-    }
+    const server = getServer(ns, host)
+    serverMap.servers[host] = server
 
-    if (!ns.hasRootAccess(host)) {
-      const neededPorts = serverMap.servers[host].ports
-      const neededHackingLevel = serverMap.servers[host].hackingLevel
+    if (!server.hasRootAccess) {
+      const neededPorts = server.ports
+      const neededHackingLevel = server.hackingLevel
 
       pp(ns, `Missing root on ${host}. Need ${neededPorts - playerDetails.programs.length} ports, ${neededHackingLevel - playerDetails.hackingLevel} Hack`)
 
