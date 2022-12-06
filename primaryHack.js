@@ -374,8 +374,11 @@ export async function main(ns) {
         const rootedServers = getRootedServers(ns, serverMap.servers)
         // pp(ns, `RootedServers: ${JSON.stringify(rootedServers, null, 2)}`)
 
-        const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
-        const bestTarget = targetServers.shift()
+        let bestTarget = 'joesguns'
+        if (bestTarget !== 'joesguns' || ns.getPlayer().skills.hacking > 200) {
+            const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
+            bestTarget = targetServers.shift()
+        }
 
         // Set the amount of time each action will take to complete for the current machine
         Object.keys(actionStats).forEach(action => {
