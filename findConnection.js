@@ -30,11 +30,17 @@ export async function main(ns) {
         const possibleServers = Object.keys(serverMap.servers)
             .filter(host => host.toLowerCase().includes(lowerCaseTarget))
 
-        pp(ns, `${target} not found. Targets containing '${target}': ${JSON.stringify(possibleServers, null, 2)}`, true)
-        ns.exit()
+        if (possibleServers.length > 1) {
+            pp(ns, `${target} not found. Targets containing '${target}': ${JSON.stringify(possibleServers, null, 2)}`, true)
+            ns.exit()
+        } else {
+            // Only found one possible target, assume that's what we meant
+            target = possibleServers[0]
+        }
     }
 
     const server = serverMap.servers[target]
+
     pp(ns, `${target} found! Root: ${server.hasRootAccess}, Backdoor: ${server.backdoorInstalled}`, true)
 
     let connectionString = ''
