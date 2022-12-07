@@ -15,7 +15,8 @@ function getRootedServers(ns, servers) {
         .filter(hostname => hostname !== "home")
         .forEach(hostname => ns.scp(hackingScripts, hostname))
 
-    rootServers.sort((a, b) => servers[a].ram - servers[b].ram)
+    // Send scripts to biggest servers first
+    rootServers.sort((a, b) => servers[b].ram - servers[a].ram)
     return rootServers
 }
 
@@ -83,7 +84,13 @@ function createUUID() {
 }
 
 /** @param {import(".").NS } ns */
-function getWeakenThreadsForMinimum(ns, host) {
+function getCores(ns, serverMap) {
+    // pp(ns, `serverMap: ${JSON.stringify(serverMap, null, 2)}`, true)
+    return serverMap.servers["home"].cores
+}
+
+/** @param {import(".").NS } ns */
+function getWeakenThreadsForMinimum(ns, host, serverMap) {
 
     const currentSecurity = ns.getServerSecurityLevel(host)
     const minSecurity = ns.getServerMinSecurityLevel(host)
@@ -94,11 +101,14 @@ function getWeakenThreadsForMinimum(ns, host) {
     // We need this to enable backtracking
     let oldSecurity = newSecurity
 
+    const cores = getCores(ns, serverMap)
+
     // Double estimated threads each time
     while (newSecurity > minSecurity) {
         threads = Math.max(1, threads * 2)
         oldSecurity = newSecurity
-        newSecurity = currentSecurity - ns.weakenAnalyze(threads)
+
+        newSecurity = currentSecurity - ns.weakenAnalyze(threads, cores)
     }
 
     // Threads was increased above threshold, put it back
@@ -108,7 +118,7 @@ function getWeakenThreadsForMinimum(ns, host) {
     // Count up from here
     while (newSecurity > minSecurity) {
         threads += 1
-        newSecurity = currentSecurity - ns.weakenAnalyze(threads)
+        newSecurity = currentSecurity - ns.weakenAnalyze(threads, cores)
     }
 
     threads = Math.max(0, threads - 1)
@@ -117,10 +127,15 @@ function getWeakenThreadsForMinimum(ns, host) {
 }
 
 /** @param {import(".").NS } ns */
-function getSetupBatch(ns, host) {
+function getSetupBatch(ns, host, desired, serverMap) {
 
     const batch = []
-    const weakenThreadsForMinimum = getWeakenThreadsForMinimum(ns, host)
+    let weakenThreadsForMinimum = getWeakenThreadsForMinimum(ns, host, serverMap)
+    // if (desired === 'xp') {
+    //     weakenThreadsForMinimum = 5000
+    // } else {
+    //     weakenThreadsForMinimum = getWeakenThreadsForMinimum(ns, host)
+    // }
     if (weakenThreadsForMinimum > 0) {
         batch.push({
             threads: weakenThreadsForMinimum,
@@ -132,31 +147,41 @@ function getSetupBatch(ns, host) {
         })
     }
 
-    const maxMoney = Math.ceil(ns.getServerMaxMoney(host) * settings().maxMoneyMultiplayer)
-    const currentMoney = Math.ceil(ns.getServerMoneyAvailable(host))
-
-    // Take max of 0 and (max - current) in case we have more money available than the target
-    const moneyGrowthWanted = Math.max(0, maxMoney - currentMoney)
-    // pp(ns, `${host} has ${currentMoney} curret money and ${maxMoney} target max money. Growth: ${moneyGrowthWanted}`)
-    if (moneyGrowthWanted > 0) {
-        const growthsNeeded = Math.ceil(ns.growthAnalyze(host, moneyGrowthWanted))
-        pp(ns, `${host} needs ${growthsNeeded} growths to go from ${currentMoney} to ${maxMoney}`)
-
-        batch.push(
-            {
-                threads: growthsNeeded,
-                actions: [
-                    {
-                        name: 'grow'
-                    },
-                    {
-                        name: 'weaken'
-                    }
-                ]
-            }
-        )
+    let moneyGrowthWanted = 0
+    if (desired === 'xp') {
+        pp(ns, `Only targeting ${host} for ${desired}, no money growth desired.`)
     } else {
-        pp(ns, `${host} is already at max money. No growth needed.`)
+        const maxMoney = Math.ceil(ns.getServerMaxMoney(host) * settings().maxMoneyMultiplayer)
+        const currentMoney = Math.ceil(ns.getServerMoneyAvailable(host))
+
+        // Take max of 0 and (max - current) in case we have more money available than the target
+        moneyGrowthWanted = Math.max(0, maxMoney - currentMoney)
+        // pp(ns, `${host} has ${currentMoney} curret money and ${maxMoney} target max money. Growth: ${moneyGrowthWanted}`)
+        if (moneyGrowthWanted > 0) {
+            
+            const cores = getCores(ns, serverMap)
+
+            // growthAnalyze takes a growth FACTOR, not a growth amount
+            const growthFactorWanted = maxMoney / currentMoney
+            const growthsNeeded = Math.ceil(ns.growthAnalyze(host, growthFactorWanted, cores))
+            pp(ns, `${host} needs ${growthsNeeded} growths to go from ${numberWithCommas(currentMoney)} to ${numberWithCommas(maxMoney)}`, true)
+
+            batch.push(
+                {
+                    threads: growthsNeeded,
+                    actions: [
+                        {
+                            name: 'grow'
+                        },
+                        {
+                            name: 'weaken'
+                        }
+                    ]
+                }
+            )
+        } else {
+            pp(ns, `${host} is already at max money. No growth needed.`)
+        }
     }
 
     // pp(ns, `Setup batch: ${JSON.stringify(batch, null, 2)}`)
@@ -165,32 +190,42 @@ function getSetupBatch(ns, host) {
 }
 
 /** @param {import(".").NS } ns */
-function getHackBatch(ns, host) {
+function getHackBatch(ns, host, desired) {
+
+    let actions = ['hack', 'weaken']
+
+    if (desired !== 'xp') {
+        actions = actions.concat(['grow', 'weaken', 'grow', 'weaken'])
+    }
+
     return [
         {
             threads: 1,
-            actions: [
-                {
-                    name: 'hack'
-                },
-                {
-                    name: 'weaken'
-                },
-                {
-                    name: 'grow'
-                },
-                {
-                    name: 'weaken'
-                },
-                {
-                    name: 'grow'
-                },
-                {
-                    name: 'weaken'
+            actions: actions.map(action => {
+                return {
+                    name: action
                 }
-            ]
+            })
         }
     ]
+}
+
+/** @param {import(".").NS } ns */
+function getFreeRam(ns, server) {
+    let freeRam = server.ram - ns.getServerUsedRam(server.host)
+
+    // Keep ram available on 'home'
+    if (server.host === 'home') {
+        freeRam -= settings().homeRamReserved
+    }
+
+    return freeRam
+}
+
+/** @param {import(".").NS } ns */
+function getMaxThreadsAvailable(ns, server, action, actionStats) {
+    const freeRam = getFreeRam(ns, server)
+    return Math.floor(freeRam / actionStats[action].ram)
 }
 
 /** @param {import(".").NS } ns */
@@ -199,13 +234,7 @@ function canRunAction(ns, server, action, actionStats) {
         return false
     }
 
-    let freeRam = server.ram - ns.getServerUsedRam(server.host)
-
-    // Keep ram available on 'home'
-    if (server.host === 'home') {
-        freeRam -= settings().homeRamReserved
-    }
-
+    const freeRam = getFreeRam(ns, server)
     return freeRam > actionStats[action].ram
 }
 
@@ -217,7 +246,7 @@ function findServerForScript(ns, rootedServers, serverMap, action, actionStats) 
 }
 
 /** @param {import(".").NS } ns */
-async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap, target) {
+async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap, target, desired) {
     // pp(ns, `### Processing ${fullBatch.length} batch(es)`)
 
     // pp(ns, `actionStats: ${JSON.stringify(actionStats, null, 2)}`)
@@ -244,7 +273,7 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
         batch.actions[firstLongestIndex].delay = 0
 
         // pp(ns, `First longest index is ${firstLongestIndex}`)
-        const bufferMs = 200
+        const bufferMs = 100
         for (let i = firstLongestIndex + 1; i < batch.actions.length; i++) {
             const bufferDelay = (i - firstLongestIndex) * bufferMs
             batch.actions[i].delay = longestActionTime - actionStats[batch.actions[i].name].time + bufferDelay
@@ -270,6 +299,7 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
         for (let threadCount = 0; threadCount < batch.threads; threadCount++) {
 
             let currentServer = null
+            let ranOutOfServers = false
             // let previousActionName = null
             for (let actionIndex = 0; actionIndex < batch.actions.length; actionIndex++) {
                 const action = batch.actions[actionIndex]
@@ -291,7 +321,8 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
 
                 while (!currentServer) {
                     const lastBatchItem = batch.actions[batch.actions.length - 1]
-                    const sleepTime = lastBatchItem.delay + actionStats[lastBatchItem.name].time + bufferMs 
+                    const sleepTime = lastBatchItem.delay + actionStats[lastBatchItem.name].time + bufferMs
+                    ranOutOfServers = true
                     pp(ns, `All servers full, ${batch.threads - threadCount} threads remaining. Sleeping for ${sleepTime / 1000 / 60} minutes`, true)
                     await ns.sleep(sleepTime)
                     pp(ns, `Resuming batch: ${JSON.stringify(batch.actions, null, 2)}`)
@@ -299,12 +330,25 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
                     currentServer = findServerForScript(ns, rootedServers, serverMap, action.name, actionStats)
                 }
 
+                let desiredThreads = 1
+                if (desired === 'xp') {
+                    desiredThreads = getMaxThreadsAvailable(ns, currentServer, action.name, actionStats)
+                    // pp(ns, `Found ${desiredThreads} threads available on ${currentServer.host}`)
+                }
+
                 // currentServer can run action
                 // pp(ns, `Assigning ${currentServer.host} to ${action} ${target} with ${scriptDelay} delay`)
-                ns.exec(actionStats[action.name].script, currentServer.host, 1, target, 1, action.delay, createUUID())
+                ns.exec(actionStats[action.name].script, currentServer.host, desiredThreads, target, desiredThreads, action.delay, createUUID())
+
+                // Sleep so the loop doesn't crash us
                 await ns.sleep(1)
 
                 // previousAction = action
+            }
+
+            // If we ran out of servers, stop the batch so we can recalculate the correct number of threads remaining. We may have leveled up!
+            if (ranOutOfServers) {
+                break
             }
         }
 
@@ -338,6 +382,25 @@ export async function main(ns) {
         throw new Error('Must be run from home')
     }
 
+    [
+        "getServerUsedRam",
+        "getServerSecurityLevel",
+        "getServerMinSecurityLevel",
+        "scp",
+    ].forEach(logName => ns.disableLog(logName))
+
+    const desiredOptions = [
+        "xp",
+        "money",
+        "early"
+    ]
+
+    let desired = "money"
+    if (ns.args.length > 0 && desiredOptions.includes(ns.args[0])) {
+        desired = ns.args[0]
+    }
+    pp(ns, `Desired: ${desired}`, true)
+
     const actionStats = {
         grow: {
             script: 'grow.js',
@@ -363,7 +426,7 @@ export async function main(ns) {
         const serverMap = getItem(settings().keys.serverMap)
 
         if (!serverMap || serverMap.lastUpdate < new Date().getTime() - settings().mapRefreshInterval) {
-            pp(ns, "Server refresh needed, spawning spider")
+            pp(ns, "Server refresh needed, spawning spider", true)
             ns.spawn("spider.js", 1, "primaryHack.js")
             ns.exit()
             return
@@ -375,7 +438,9 @@ export async function main(ns) {
         // pp(ns, `RootedServers: ${JSON.stringify(rootedServers, null, 2)}`)
 
         let bestTarget = 'joesguns'
-        if (bestTarget !== 'joesguns' || ns.getPlayer().skills.hacking > 200) {
+        if (desired === 'early') {
+            bestTarget = 'n00dles'
+        } else if (desired !== 'money' && ns.getPlayer().skills.hacking > 200) {
             const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
             bestTarget = targetServers.shift()
         }
@@ -385,13 +450,13 @@ export async function main(ns) {
             actionStats[action].time = getTimeForAction(ns, bestTarget, action)
         })
 
-        const setupBatch = getSetupBatch(ns, bestTarget)
+        const setupBatch = getSetupBatch(ns, bestTarget, desired, serverMap)
         pp(ns, `Processing setup batch...`)
-        await processBatch(ns, setupBatch, rootedServers, actionStats, serverMap, bestTarget)
+        await processBatch(ns, setupBatch, rootedServers, actionStats, serverMap, bestTarget, desired)
 
-        const hackBatch = getHackBatch(ns, bestTarget)
+        const hackBatch = getHackBatch(ns, bestTarget, desired)
         pp(ns, `Processing hack batch...`)
-        await processBatch(ns, hackBatch, rootedServers, actionStats, serverMap, bestTarget)
+        await processBatch(ns, hackBatch, rootedServers, actionStats, serverMap, bestTarget, desired)
 
         // If all of our rooted servers are full, sleep.
         // if (!rootedServers.some(rootedServer => (serverMap.servers[rootedServer].ram - ns.getServerUsedRam(rootedServer)) > maxRamRequired)) {
