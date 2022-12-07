@@ -440,7 +440,7 @@ export async function main(ns) {
         let bestTarget = 'joesguns'
         if (desired === 'early') {
             bestTarget = 'n00dles'
-        } else if (desired !== 'money' && ns.getPlayer().skills.hacking > 200) {
+        } else if (desired === 'money' && ns.getPlayer().skills.hacking > 400) {
             const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
             bestTarget = targetServers.shift()
         }
