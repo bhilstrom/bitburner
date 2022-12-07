@@ -80,7 +80,8 @@ function getServer(ns, host) {
     ram: server.maxRam,
     files: ns.ls(host),
     backdoorInstalled: server.backdoorInstalled,
-    hasRootAccess: server.hasAdminRights
+    hasRootAccess: server.hasAdminRights,
+    cores: server.cpuCores
   }
 }
 
@@ -114,7 +115,7 @@ export async function main(ns) {
       const neededPorts = server.ports
       const neededHackingLevel = server.hackingLevel
 
-      pp(ns, `Missing root on ${host}. Need ${neededPorts - playerDetails.programs.length} ports, ${neededHackingLevel - playerDetails.hackingLevel} Hack`)
+      pp(ns, `Missing root on ${host}. Need ${neededPorts - playerDetails.programs.length} ports, ${neededHackingLevel - playerDetails.hackingLevel} Hack`, true)
 
       if (neededPorts <= playerDetails.programs.length && neededHackingLevel <= playerDetails.hackingLevel) {
         pp(ns, `Gaining root on ${host}`)
