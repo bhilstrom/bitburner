@@ -41,7 +41,7 @@ export async function main(ns) {
 
     const server = serverMap.servers[target]
 
-    pp(ns, `${target} found! Root: ${server.hasRootAccess}, Backdoor: ${server.backdoorInstalled}`, true)
+    pp(ns, `${target} found! Server: ${JSON.stringify(server, null, 2)}`, true)
 
     let connectionString = ''
     while (target && target !== 'home') {
