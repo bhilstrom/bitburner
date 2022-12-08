@@ -5,10 +5,15 @@ const hackingScripts = ['hack.js', 'grow.js', 'weaken.js', 'common.js']
 /** @param {import(".").NS } ns */
 function getRootedServers(ns, servers) {
 
+    // Only include servers:
+    // - With root access
+    // - That have more than 1 ram
+    // - That aren't scheduled for decommission (other than home)
     const rootServers = Object.keys(servers)
         .filter((hostname) => ns.serverExists(hostname))
         .filter((hostname) => ns.hasRootAccess(hostname))
         .filter((hostname) => servers[hostname].ram >= 2)
+        .filter((hostname) => hostname === 'home' || !ns.fileExists(settings().decommissionFilename, hostname))
 
     // Copy hacking scripts to rooted servers
     rootServers
@@ -321,7 +326,7 @@ async function processBatch(ns, fullBatch, rootedServers, actionStats, serverMap
 
                 while (!currentServer) {
                     const lastBatchItem = batch.actions[batch.actions.length - 1]
-                    const sleepTime = lastBatchItem.delay + actionStats[lastBatchItem.name].time + bufferMs
+                    const sleepTime = lastBatchItem.delay + actionStats[lastBatchItem.name].time + bufferMs + 500
                     ranOutOfServers = true
                     pp(ns, `All servers full, ${batch.threads - threadCount} threads remaining. Sleeping for ${sleepTime / 1000 / 60} minutes`, true)
                     await ns.sleep(sleepTime)
