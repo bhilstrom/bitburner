@@ -43,7 +43,7 @@ export async function main(ns) {
 
     pp(ns, `${target} found! Server: ${JSON.stringify(server, null, 2)}`, true)
 
-    let connectionString = ''
+    let connectionString = server.backdoorInstalled ? '' : 'backdoor;'
     while (target && target !== 'home') {
         connectionString = `connect ${target};` + connectionString
         target = serverMap.servers[target].parent
@@ -51,5 +51,6 @@ export async function main(ns) {
 
     connectionString = `home;` + connectionString
 
-    pp(ns, `Connection string: ${connectionString}`, true)
+    pp(ns, `Connection string copied to clipboard: ${connectionString}`, true)
+    navigator.clipboard.writeText(connectionString)
 }
