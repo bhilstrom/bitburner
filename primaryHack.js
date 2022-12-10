@@ -443,9 +443,7 @@ export async function main(ns) {
         // pp(ns, `RootedServers: ${JSON.stringify(rootedServers, null, 2)}`)
 
         let bestTarget = 'joesguns'
-        if (desired === 'early') {
-            bestTarget = 'n00dles'
-        } else if (desired === 'money' && ns.getPlayer().skills.hacking > 400) {
+        if (desired === 'money' && ns.getPlayer().skills.hacking > 400) {
             const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
             bestTarget = targetServers.shift()
         }
@@ -472,6 +470,6 @@ export async function main(ns) {
         // }
 
         pp(ns, "Running through again after pause...")
-        await ns.sleep(100)
+        await ns.sleep(500)
     }
 }
