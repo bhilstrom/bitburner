@@ -156,7 +156,7 @@ function getSetupBatch(ns, host, desired, serverMap) {
     if (desired === 'xp') {
         pp(ns, `Only targeting ${host} for ${desired}, no money growth desired.`)
     } else {
-        const maxMoney = Math.ceil(ns.getServerMaxMoney(host) * settings().maxMoneyMultiplayer)
+        const maxMoney = Math.ceil(ns.getServerMaxMoney(host) * settings().maxMoneyMultiplier)
         const currentMoney = Math.ceil(ns.getServerMoneyAvailable(host))
 
         // Take max of 0 and (max - current) in case we have more money available than the target
@@ -446,6 +446,11 @@ export async function main(ns) {
         if (desired === 'money' && ns.getPlayer().skills.hacking > 400) {
             const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
             bestTarget = targetServers.shift()
+        }
+
+        // If joesguns isn't rooted, use n00dles until we get there
+        if (!ns.getServer(bestTarget).hasAdminRights == true) {
+            bestTarget = 'n00dles'
         }
 
         // Set the amount of time each action will take to complete for the current machine

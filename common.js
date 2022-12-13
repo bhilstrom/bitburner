@@ -7,7 +7,7 @@ export function settings() {
         homeRamExtraRamReserved: 12,
         homeRamBigMode: 64,
         minSecurityLevelOffset: 1,
-        maxMoneyMultiplayer: 0.9,
+        maxMoneyMultiplier: 1,
         minSecurityWeight: 100,
         mapRefreshInterval: 30 * 60 * 1000, // 30 minutes
         maxWeakenTime: 10 * 60 * 1000, // 10 minutes
