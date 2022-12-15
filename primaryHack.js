@@ -167,7 +167,11 @@ function getSetupBatch(ns, host, desired, serverMap) {
             const cores = getCores(ns, serverMap)
 
             // growthAnalyze takes a growth FACTOR, not a growth amount
-            const growthFactorWanted = maxMoney / currentMoney
+            let growthFactorWanted = maxMoney / currentMoney
+            if (!Number.isFinite(growthFactorWanted)) {
+                growthFactorWanted = Number.MAX_SAFE_INTEGER - 1
+            }
+
             const growthsNeeded = Math.ceil(ns.growthAnalyze(host, growthFactorWanted, cores))
             pp(ns, `${host} needs ${growthsNeeded} growths to go from ${numberWithCommas(currentMoney)} to ${numberWithCommas(maxMoney)}`, true)
 
@@ -432,7 +436,7 @@ export async function main(ns) {
 
         if (!serverMap || serverMap.lastUpdate < new Date().getTime() - settings().mapRefreshInterval) {
             pp(ns, "Server refresh needed, spawning spider", true)
-            ns.spawn("spider.js", 1, "primaryHack.js")
+            ns.spawn("spider.js", 1, "primaryHack.js", desired)
             ns.exit()
             return
         }
@@ -443,7 +447,7 @@ export async function main(ns) {
         // pp(ns, `RootedServers: ${JSON.stringify(rootedServers, null, 2)}`)
 
         let bestTarget = 'joesguns'
-        if (desired === 'money' && ns.getPlayer().skills.hacking > 400) {
+        if (desired === 'money' && ns.getPlayer().skills.hacking > 206) { // Hacking required for NiteSec
             const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
             bestTarget = targetServers.shift()
         }
