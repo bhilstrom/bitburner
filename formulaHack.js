@@ -115,11 +115,10 @@ function getAvailableRam(ns, rootedServers) {
  * 
  * @param {import(".").NS } ns
  * @param {import(".").Server} target
- * @param {import(".").Server} home
  */
-function distributeBatch(ns, target, home, rootedServers, actionStats, availableRam, batch, allowGrowOnOtherServers = false, awakenTime = undefined) {
+ function distributeBatch(ns, target, rootedServers, actionStats, availableRam, batch, allowGrowOnOtherServers = false, awakenTime = undefined) {
 
-    const bufferMs = 40
+    const bufferMs = 200
     let currentTime = awakenTime !== undefined ? awakenTime : performance.now()
     let nextLanding = currentTime + actionStats.weaken.time + (bufferMs * 4)
     let batchToExecute = []
@@ -142,7 +141,7 @@ function distributeBatch(ns, target, home, rootedServers, actionStats, available
             attacker: hostname,
             action: 'hack',
             threads: batch.hack,
-            landing: nextLanding
+            landing: nextLanding - (bufferMs * 4)
         })
 
         availableRam[hostname] -= batch.hack * actionStats.hack.ram
@@ -159,7 +158,7 @@ function distributeBatch(ns, target, home, rootedServers, actionStats, available
             attacker: 'home',
             action: 'grow',
             threads: growTheadsToExecute,
-            landing: nextLanding + (bufferMs * 2) // Grow happens after hack and first weaken
+            landing: nextLanding - (bufferMs * 2) // Grow happens after hack and first weaken
         })
 
         anyGrow = true
@@ -174,12 +173,12 @@ function distributeBatch(ns, target, home, rootedServers, actionStats, available
     for (let hostname of rootedServers) {
         if (batch.weaken1 > 0) {
             anyWeaken1 = true
-            batch.weaken1 = distributeWeaken(ns, batch.weaken1, hostname, availableRam, actionStats, nextLanding + bufferMs, batchToExecute)
+            batch.weaken1 = distributeWeaken(ns, batch.weaken1, hostname, availableRam, actionStats, nextLanding - (bufferMs * 3), batchToExecute)
         }
 
         if (batch.weaken2 > 0) {
             anyWeaken2 = true
-            batch.weaken2 = distributeWeaken(ns, batch.weaken2, hostname, availableRam, actionStats, nextLanding + (bufferMs * 3), batchToExecute)
+            batch.weaken2 = distributeWeaken(ns, batch.weaken2, hostname, availableRam, actionStats, nextLanding - bufferMs, batchToExecute)
         }
     }
 
@@ -192,7 +191,7 @@ function distributeBatch(ns, target, home, rootedServers, actionStats, available
 
             if (growTheadsToExecute > 0) {
                 batchToExecute.push({
-                    attacher: hostname,
+                    attacker: hostname,
                     action: 'grow',
                     threads: growTheadsToExecute,
                     landing: nextLanding + (bufferMs * 2) // Same as the grow from earlier
@@ -203,12 +202,22 @@ function distributeBatch(ns, target, home, rootedServers, actionStats, available
         }
     }
 
-    pp(ns, `Batch: ${JSON.stringify(batchToExecute, null, 2)}`, true)
-    pp(ns, `Remaining batch: ${JSON.stringify(batch, null, 2)}`, true)
+    // If any portion of the batch could not be accounted for, don't actually execute.
+    // Just return the remaining amount, and we'll catch it in the next loop.
+    if (batch.hack > 0 || batch.grow > 0 || batch.weaken1 > 0 || batch.weaken2 > 0) {
+        pp(ns, `Unable to fully distribute batch: ${JSON.stringify(batch, null, 2)}`)
+        return nextLanding + bufferMs
+    }
+
+    // pp(ns, `Batch: ${JSON.stringify(batchToExecute, null, 2)}`, true)
+    // pp(ns, `Remaining batch: ${JSON.stringify(batch, null, 2)}`, true)
 
     // Actually distribute the commands
     for (let cmd of batchToExecute) {
-        pp(ns, `Executing against ${target.hostname}: ${JSON.stringify(cmd, null, 2)}`, true)
+        // pp(ns, `Executing against ${target.hostname}: ${JSON.stringify(cmd, null, 2)}`, true)
+        if (!cmd.attacker) {
+            pp(ns, `Cmd is missing attacker. cmd: ${JSON.stringify(cmd, null, 2)}, batch: ${JSON.stringify(batchToExecute, null, 2)}`, true)
+        }
         ns.exec(actionStats[cmd.action].script, cmd.attacker, cmd.threads, target.hostname, cmd.landing)
     }
 
@@ -227,7 +236,12 @@ function distributeBatch(ns, target, home, rootedServers, actionStats, available
         actionsExecuted += 1
     }
 
-    return nextLanding + (bufferMs * (actionsExecuted + 1))
+    // If we don't need to delay, just return the current time so we don't stall needlessly
+    if (actionsExecuted > 0) {
+        return nextLanding + (bufferMs * (actionsExecuted + 1))
+    } else {
+        return performance.now()
+    }
 }
 
 /**
@@ -259,49 +273,19 @@ function distributeWeaken(ns, threads, hostname, availableRam, actionStats, land
  * @param {import(".").Server} target
  */
 function getGrowThreadsRequired(ns, target, startingMoney, desiredMoney, cores = 1) {
-    pp(ns, `Getting grow threads on ${target.hostname}: starting ${startingMoney} desired ${desiredMoney} cores ${cores}`, true)
+    pp(ns, `Getting grow threads on ${target.hostname}: starting ${startingMoney} desired ${desiredMoney} cores ${cores}`)
     const growthAmount = desiredMoney - startingMoney
 
     if (growthAmount <= 0) {
         return 0
     }
 
+    if (!Number.isFinite(growthAmount)) {
+        growthAmount = Number.MAX_SAFE_INTEGER - 1
+    }
+
+    // growthAnalyze takes a growth FACTOR, not a growth amount
     return Math.ceil(ns.growthAnalyze(target.hostname, desiredMoney / startingMoney, cores))
-}
-
-/** @param {import(".").NS } ns */
-function getWeakenThreadsForMinimum(ns, host, currentSecurityLevel = undefined) {
-
-    const currentSecurity = currentSecurityLevel !== undefined ? currentSecurityLevel : ns.getServerSecurityLevel(host)
-    const minSecurity = ns.getServerMinSecurityLevel(host)
-
-    let threads = 0
-    let newSecurity = currentSecurity
-
-    // We need this to enable backtracking
-    let oldSecurity = newSecurity
-
-    // Double estimated threads each time
-    while (newSecurity > minSecurity) {
-        threads = Math.max(1, threads * 2)
-        oldSecurity = newSecurity
-
-        newSecurity = currentSecurity - ns.weakenAnalyze(threads)
-    }
-
-    // Threads was increased above threshold, put it back
-    threads = Math.floor(threads / 2)
-    newSecurity = oldSecurity
-
-    // Count up from here
-    while (newSecurity > minSecurity) {
-        threads += 1
-        newSecurity = currentSecurity - ns.weakenAnalyze(threads)
-    }
-
-    threads = Math.max(0, threads - 1)
-    pp(ns, `${host} needs ${threads} weakens to go from ${currentSecurity} to ${minSecurity}`)
-    return threads
 }
 
 /** @param {import(".").NS } ns */
@@ -356,7 +340,6 @@ export async function main(ns) {
             pp(ns, "Server refresh needed, spawning spider", true)
             ns.spawn("spider.js", 1, "formulaHack.js")
             ns.exit()
-            return
         }
 
         serverMap.servers.home.ram = Math.max(0, serverMap.servers.home.ram - settings().homeRamReserved)
@@ -365,7 +348,7 @@ export async function main(ns) {
 
         // Get the target server
         let bestTarget = 'joesguns'
-        if (desired === 'money' && ns.getPlayer().skills.hacking > 400) {
+        if (desired === 'money' && ns.getPlayer().skills.hacking > ns.getServer('avmnite-02h').requiredHackingSkill) {
             const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
             bestTarget = targetServers.shift()
         }
@@ -379,7 +362,7 @@ export async function main(ns) {
 
         // Get the time it would take to run each script against the server
         const actionTimes = getActionTimes(ns, target, player)
-        pp(ns, `${JSON.stringify(actionTimes, null, 2)}`, true)
+        // pp(ns, `${JSON.stringify(actionTimes, null, 2)}`, true)
         Object.keys(actionTimes).forEach(action => {
             actionStats[action].time = actionTimes[action]
         })
@@ -390,13 +373,13 @@ export async function main(ns) {
         let growThreads = 0
         let weakenThreadsForGrow = 0
         let availableRam = {}
-        pp(ns, `ZERO. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
+        // pp(ns, `ZERO. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
         let awakenFromPrepareBatchAt = undefined
         while (weakenThreadsForMinimum > 0 || growThreads > 0 || weakenThreadsForGrow > 0) {
             availableRam = getAvailableRam(ns, rootedServers)
 
             // pp(ns, `ONE. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
-            pp(ns, `ONE`, true)
+            pp(ns, `ONE`)
             // Weaken ALWAYS lowers the security level of the target by 0.05
             // https://github.com/danielyxie/bitburner/blob/master/markdown/bitburner.ns.weaken.md
             weakenThreadsForMinimum = Math.ceil((target.hackDifficulty - target.minDifficulty) / .05)
@@ -418,34 +401,41 @@ export async function main(ns) {
                 weaken2: weakenThreadsForGrow
             }
 
-            pp(ns, `Prepare target batch: ${JSON.stringify(prepareTargetBatch, null, 2)}`, true)
+            pp(ns, `Prepare target batch: ${JSON.stringify(prepareTargetBatch, null, 2)}`)
             // ns.exit()
 
-            awakenFromPrepareBatchAt = distributeBatch(ns, target, home, rootedServers, actionStats, availableRam, prepareTargetBatch, true)
+            if (!target.hostname) {
+                pp(ns, `How did getServer(${bestTarget}) return ${JSON.stringify(target, null, 2)}`)
+            }
+
+            awakenFromPrepareBatchAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, prepareTargetBatch, true)
 
             // ONLY RUN ONCE, TESTING
-            pp(ns, `TWO. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
-            pp(ns, `PrepareTargetBatch after distribution: ${JSON.stringify(prepareTargetBatch, null, 2)}`, true)
+            // pp(ns, `TWO. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
+            pp(ns, `PrepareTargetBatch after distribution: ${JSON.stringify(prepareTargetBatch, null, 2)}`)
 
             // If we have any undistributed threads, we should sleep for the completion of the batch before we start the next one.
             // If not, we can continue on to hacking.
             growThreads = prepareTargetBatch.grow
             weakenThreadsForMinimum = prepareTargetBatch.weaken1
             weakenThreadsForGrow = prepareTargetBatch.weaken2
-            if (weakenThreadsForGrow > 0 || weakenThreadsForMinimum > 0 || weakenThreadsForGrow > 0) {
+            if (growThreads > 0 || weakenThreadsForMinimum > 0 || weakenThreadsForGrow > 0) {
                 const sleepFor = awakenFromPrepareBatchAt - performance.now()
-                pp(ns, `Would sleep for ${sleepFor}`, true)
+                pp(ns, `Preparation batch not distributed, sleeping for ${sleepFor}`, true)
                 await ns.sleep(sleepFor)
             } else {
-                pp(ns, `Preparation batch fully distributed, start hack batch at ${awakenFromPrepareBatchAt}`, true)
+                pp(ns, `Preparation batch fully distributed, start hack batch at ${awakenFromPrepareBatchAt}`)
                 await ns.sleep(10)
             }
 
             // Refresh the servers for up-to-date data
             target = ns.getServer(bestTarget)
+            if (!target.hostname) {
+                pp(ns, `How did getServer(${bestTarget}) return ${JSON.stringify(target, null, 2)}`, true)
+            }
             home = ns.getServer('home')
 
-            pp(ns, `End of loop. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
+            pp(ns, `End of loop. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`)
         }
 
         // Hack server
@@ -471,7 +461,7 @@ export async function main(ns) {
             growThreads += 1
         }
 
-        pp(ns, `Growing after removing ${targetMoneyToRemove} results in ${growThreads} grow threads`, true)
+        pp(ns, `Growing after removing ${targetMoneyToRemove} results in ${growThreads} grow threads`)
 
         // Source for growthAnalyzeSecurity is currently 'return 2 * CONSTANTS.ServerFortifyAmount * threads;'
         // https://github.com/danielyxie/bitburner/blob/master/src/NetscriptFunctions.ts,
@@ -482,7 +472,7 @@ export async function main(ns) {
         // const gAnalyzeResult = ns.growthAnalyzeSecurity(growThreads, target.hostname, 1)
 
         weakenThreadsForGrow = Math.ceil(securityIncreaseFromGrow / 0.05) + 1 // Adding one to cover 
-        pp(ns, `Weaken threads for ${growThreads} grow threads and ${securityIncreaseFromGrow} secutity increase: ${weakenThreadsForGrow}`, true)
+        pp(ns, `Weaken threads for ${growThreads} grow threads and ${securityIncreaseFromGrow} secutity increase: ${weakenThreadsForGrow}`)
 
         let hackBatch = {
             hack: hackThreads,
@@ -491,11 +481,22 @@ export async function main(ns) {
             weaken2: weakenThreadsForGrow
         }
 
-        pp(ns, `Hack batch: ${JSON.stringify(hackBatch, null, 2)}`, true)
+        pp(ns, `Hack batch: ${JSON.stringify(hackBatch, null, 2)}`)
 
-        let awakenFromHackAt = distributeBatch(ns, target, home, rootedServers, actionStats, availableRam, hackBatch, false, awakenFromPrepareBatchAt)
+        // Loop through the hack batch until we're full.
+        let awakenFromHackAt = awakenFromPrepareBatchAt
+        awakenFromHackAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, hackBatch, false, awakenFromHackAt)
+        pp(ns, `Hack batch after processing: ${JSON.stringify(hackBatch, null, 2)}`)
+            
+        // while (hackBatch.hack > 0 || hackBatch.weaken1 > 0 || hackBatch.grow > 0 || hackBatch.weaken2 > 0) {
+        //     const sleepTime = Math.max(100, awakenFromHackAt - performance.now())
+        //     await ns.sleep(sleepTime)
+        // }
 
-        const sleepTime = Math.max(100, awakenFromHackAt - performance.now())
-        await ns.sleep(sleepTime)
+        await ns.sleep(1000)
+
+        // const sleepTime = Math.max(100, awakenFromHackAt - performance.now())
+        // const sleepTime = 100
+        // await ns.sleep(sleepTime)
     }
 }
