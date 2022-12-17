@@ -106,7 +106,13 @@ function getAvailableRam(ns, rootedServers) {
     const ramMap = {}
     rootedServers.forEach(hostname => {
         const server = ns.getServer(hostname)
-        ramMap[hostname] = server.maxRam - server.ramUsed
+
+        let available = server.maxRam - server.ramUsed
+        if (hostname == 'home') {
+            available -= settings().homeRamReserved
+        }
+        
+        ramMap[hostname] = available
     })
     return ramMap
 }
@@ -204,7 +210,9 @@ function getAvailableRam(ns, rootedServers) {
 
     // If any portion of the batch could not be accounted for, don't actually execute.
     // Just return the remaining amount, and we'll catch it in the next loop.
-    if (batch.hack > 0 || batch.grow > 0 || batch.weaken1 > 0 || batch.weaken2 > 0) {
+    // This only applies if grow can only happen on the home server.
+    // If grow CAN happen on other servers, it means we're doing the preparation batch and need all the threads we can get.
+    if (!allowGrowOnOtherServers && (batch.hack > 0 || batch.grow > 0 || batch.weaken1 > 0 || batch.weaken2 > 0)) {
         pp(ns, `Unable to fully distribute batch: ${JSON.stringify(batch, null, 2)}`)
         return nextLanding + bufferMs
     }
@@ -285,7 +293,13 @@ function getGrowThreadsRequired(ns, target, startingMoney, desiredMoney, cores =
     }
 
     // growthAnalyze takes a growth FACTOR, not a growth amount
-    return Math.ceil(ns.growthAnalyze(target.hostname, desiredMoney / startingMoney, cores))
+    let growthFactorWanted = desiredMoney / startingMoney
+    if (!Number.isFinite(growthFactorWanted)) {
+        growthFactorWanted = Number.MAX_SAFE_INTEGER - 1
+    }
+
+    return Math.ceil(ns.growthAnalyze(target.hostname, growthFactorWanted, cores))
+
 }
 
 /** @param {import(".").NS } ns */
