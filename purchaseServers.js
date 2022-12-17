@@ -10,7 +10,7 @@ function getRamToPurchase(ns, minRamPow = 3, maxRamPow = 20) {
         ramPow += 1
     }
 
-    pp(ns, `Next available ram power to purchase: ${ramPow}`, true)
+    pp(ns, `Next available ram power to purchase: ${ramPow}`)
     return Math.pow(2, ramPow)
 }
 
@@ -64,7 +64,9 @@ export async function main(ns) {
 
         // If we don't have enough servers, purchase the biggest one we can
         if (servers.length < purchasedServerLimit) {
-            ns.purchaseServer(`${serverNamePrefix}${servers.length}`, getRamToPurchase(ns))
+            const ram = getRamToPurchase(ns)
+            pp(ns, `Purchasing new server with ${ram} ram`, true)
+            ns.purchaseServer(`${serverNamePrefix}${servers.length}`, ram)
             spiderDataRefreshNeeded = true
         } else {
 
@@ -79,7 +81,7 @@ export async function main(ns) {
             // We should check the smallest server and see if we can upgrade it.
             const affordableRam = getRamToPurchase(ns)
             if (affordableRam > smallestServer.maxRam) {
-                pp(ns, `Upgrading ${smallestServer.hostname} from ${smallestServer.maxRam} to ${affordableRam}`)
+                pp(ns, `Upgrading ${smallestServer.hostname} from ${smallestServer.maxRam} to ${affordableRam}`, true)
                 await decommissionAndKillServer(ns, smallestServer.hostname)
                 ns.purchaseServer(smallestServer.hostname, affordableRam)
                 spiderDataRefreshNeeded = true
