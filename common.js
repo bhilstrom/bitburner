@@ -2,8 +2,8 @@
 
 export function settings() {
     return {
-        homeRamReserved: 20,
-        homeRamReservedBase: 20,
+        homeRamReserved: 22,
+        homeRamReservedBase: 22,
         homeRamExtraRamReserved: 12,
         homeRamBigMode: 64,
         minSecurityLevelOffset: 1,
