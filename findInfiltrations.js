@@ -25,4 +25,11 @@ export async function main(ns) {
     infiltrations.forEach(infiltration => {
         pp(ns, `${infiltration.location.name} [${infiltration.location.city}]: diff ${infiltration.difficulty}, reward rep ${infiltration.reward.tradeRep}`, true)
     })
+
+    const bestInfiltration = infiltrations
+        .filter(infiltration => infiltration.difficulty < 1)
+        .sort((a, b) => a.reward.tradeRep > b.reward.tradeRep)
+        .shift()
+
+    pp(ns, `Recommended infiltration: ${bestInfiltration.location.name} [${bestInfiltration.location.city}]: diff ${bestInfiltration.difficulty}, reward rep ${bestInfiltration.reward.tradeRep}`, true)
 }
