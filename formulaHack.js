@@ -319,7 +319,8 @@ export async function main(ns) {
 
     const desiredOptions = [
         "xp",
-        "money"
+        "money",
+        "joesguns"
     ]
 
     let desired = "money"
@@ -456,9 +457,13 @@ export async function main(ns) {
         const hackPercent = .1
         const effectiveMaxMoney = target.moneyMax * settings().maxMoneyMultiplier
         const targetMoneyToRemove = effectiveMaxMoney * hackPercent
-        let hackThreads = Math.floor(ns.hackAnalyzeThreads(target.hostname, targetMoneyToRemove))
+        
+        // Because we want to err on the side of fewer threads, we use floor
+        // However, that can make us hack for 0 threads if our hacking is too strong.
+        let hackThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(target.hostname, targetMoneyToRemove)))
 
-        const moneyStolen = Math.floor(ns.hackAnalyze(target.hostname) * effectiveMaxMoney) * hackThreads
+        // Err on having stolen more money so we need to grow more
+        const moneyStolen = Math.ceil(ns.hackAnalyze(target.hostname) * effectiveMaxMoney) * hackThreads
         const moneyAvailableAfterHack = effectiveMaxMoney - moneyStolen
         const securityIncrease = ns.hackAnalyzeSecurity(hackThreads, target.hostname)
 
