@@ -28,7 +28,7 @@ export async function main(ns) {
 
     const bestInfiltration = infiltrations
         .filter(infiltration => infiltration.difficulty < 1)
-        .sort((a, b) => a.reward.tradeRep > b.reward.tradeRep)
+        .sort((a, b) => b.reward.tradeRep - a.reward.tradeRep)
         .shift()
 
     pp(ns, `Recommended infiltration: ${bestInfiltration.location.name} [${bestInfiltration.location.city}]: diff ${bestInfiltration.difficulty}, reward rep ${bestInfiltration.reward.tradeRep}`, true)
