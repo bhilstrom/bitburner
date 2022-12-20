@@ -111,7 +111,7 @@ function getAvailableRam(ns, rootedServers) {
         if (hostname == 'home') {
             available -= settings().homeRamReserved
         }
-        
+
         ramMap[hostname] = available
     })
     return ramMap
@@ -122,7 +122,7 @@ function getAvailableRam(ns, rootedServers) {
  * @param {import(".").NS } ns
  * @param {import(".").Server} target
  */
- function distributeBatch(ns, target, rootedServers, actionStats, availableRam, batch, allowGrowOnOtherServers = false, awakenTime = undefined) {
+function distributeBatch(ns, target, rootedServers, actionStats, availableRam, batch, allowGrowOnOtherServers = false, awakenTime = undefined) {
 
     const bufferMs = 200
     let currentTime = awakenTime !== undefined ? awakenTime : performance.now()
@@ -302,6 +302,184 @@ function getGrowThreadsRequired(ns, target, startingMoney, desiredMoney, cores =
 
 }
 
+/**
+ * 
+ * @param {import(".").NS } ns
+ */
+async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionStats, desired) {
+
+    let target = ns.getServer(targetHostname)
+    const player = ns.getPlayer()
+    let home = ns.getServer('home')
+
+    // Get the time it would take to run each script against the server
+    const actionTimes = getActionTimes(ns, target, player)
+    // pp(ns, `${JSON.stringify(actionTimes, null, 2)}`, true)
+    Object.keys(actionTimes).forEach(action => {
+        actionStats[action].time = actionTimes[action]
+    })
+
+    // Prepare server
+    // Set so we enter the while loop and get the REAL values
+    let weakenThreadsForMinimum = 1
+    let growThreads = 0
+    let weakenThreadsForGrow = 0
+    let availableRam = {}
+    // pp(ns, `ZERO. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
+    let awakenFromPrepareBatchAt = undefined
+    while (weakenThreadsForMinimum > 0 || growThreads > 0 || weakenThreadsForGrow > 0) {
+
+        // Update server data, a lot changes in the early game
+        const serverData = updateServerData(ns, desired)
+        rootedServers = serverData[1]
+
+        availableRam = getAvailableRam(ns, rootedServers)
+
+        let prepareTargetBatch = {
+            hack: 0
+        }
+
+        // pp(ns, `ONE. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
+        // pp(ns, `ONE`)
+        // Weaken ALWAYS lowers the security level of the target by 0.05
+        // https://github.com/danielyxie/bitburner/blob/master/markdown/bitburner.ns.weaken.md
+        weakenThreadsForMinimum = Math.ceil((target.hackDifficulty - target.minDifficulty) / .05)
+        prepareTargetBatch.weaken1 = weakenThreadsForMinimum
+
+        // By using home's cores, this is the minimum number of grow threads.
+        // If the home server fills up, we'll distribute these to other servers.
+        // Any remaining threads will be handled when we loop again,
+        // so the accuracy of "did we use the cores" is unimportant.
+        if (desired !== 'xp') {
+            const desiredMoney = target.moneyMax * settings().maxMoneyMultiplier
+            growThreads = getGrowThreadsRequired(ns, target, target.moneyAvailable, desiredMoney, home.cpuCores)
+            prepareTargetBatch.grow = growThreads
+    
+            // This method optionally takes 'cores', but ideally weaken is distributed to machines other than 'home'
+            weakenThreadsForGrow = Math.ceil(ns.growthAnalyzeSecurity(growThreads, target.hostname, 1) / 0.05)
+            prepareTargetBatch.weaken2 = weakenThreadsForGrow
+        }
+
+        pp(ns, `Prepare target batch: ${JSON.stringify(prepareTargetBatch, null, 2)}`)
+        // ns.exit()
+
+        if (!target.hostname) {
+            pp(ns, `How did getServer(${targetHostname}) return ${JSON.stringify(target, null, 2)}`)
+        }
+
+        awakenFromPrepareBatchAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, prepareTargetBatch, true)
+
+        // ONLY RUN ONCE, TESTING
+        // pp(ns, `TWO. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
+        pp(ns, `PrepareTargetBatch after distribution: ${JSON.stringify(prepareTargetBatch, null, 2)}`)
+
+        // If we have any undistributed threads, we should sleep for the completion of the batch before we start the next one.
+        // If not, we can continue on to hacking.
+        growThreads = prepareTargetBatch.grow
+        weakenThreadsForMinimum = prepareTargetBatch.weaken1
+        weakenThreadsForGrow = prepareTargetBatch.weaken2
+        if (growThreads > 0 || weakenThreadsForMinimum > 0 || weakenThreadsForGrow > 0) {
+            const sleepFor = awakenFromPrepareBatchAt - performance.now()
+            pp(ns, `Preparation batch not distributed, sleeping for ${sleepFor}`, true)
+            await ns.sleep(sleepFor)
+        } else {
+            pp(ns, `Preparation batch fully distributed, start hack batch at ${awakenFromPrepareBatchAt}`)
+            await ns.sleep(10)
+        }
+
+        // Refresh the servers for up-to-date data
+        target = ns.getServer(targetHostname)
+        if (!target.hostname) {
+            pp(ns, `How did getServer(${targetHostname}) return ${JSON.stringify(target, null, 2)}`, true)
+        }
+        home = ns.getServer('home')
+
+        pp(ns, `End of loop. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`)
+    }
+
+    // If we're not hacking, don't hack, just load the servers as high as they'll go.
+    if (desired === 'xp') {
+        let xpBatch = {
+            hack: 1,
+            weaken1: Number.MAX_SAFE_INTEGER - 1,
+        }
+
+        distributeBatch(ns, target, rootedServers, actionStats, availableRam, xpBatch, true, awakenFromPrepareBatchAt)
+    } else {
+
+        // Hack server
+        const hackPercent = .1
+        const effectiveMaxMoney = target.moneyMax * settings().maxMoneyMultiplier
+        const targetMoneyToRemove = effectiveMaxMoney * hackPercent
+    
+        // Because we want to err on the side of fewer threads, we use floor
+        // However, that can make us hack for 0 threads if our hacking is too strong.
+        let hackThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(target.hostname, targetMoneyToRemove)))
+    
+        // Err on having stolen more money so we need to grow more
+        const moneyStolen = Math.ceil(ns.hackAnalyze(target.hostname) * effectiveMaxMoney) * hackThreads
+        const moneyAvailableAfterHack = effectiveMaxMoney - moneyStolen
+        const securityIncrease = ns.hackAnalyzeSecurity(hackThreads, target.hostname)
+    
+        // Weaken ALWAYS lowers the security level of the target by 0.05
+        // https://github.com/danielyxie/bitburner/blob/master/markdown/bitburner.ns.weaken.md
+        let weakenThreadsForHack = Math.ceil(securityIncrease / .05)
+    
+        // Grow threads run on the home server due to exponential growth
+        const moneyTargetAfterGrow = target.moneyMax * settings().maxMoneyMultiplier
+        growThreads = getGrowThreadsRequired(ns, target, moneyAvailableAfterHack, moneyTargetAfterGrow, home.cpuCores)
+    
+        // Everything's an approximation, so do one more grow than necessary to make sure we stay on top
+        if (hackThreads > 0) {
+            growThreads += 1
+        }
+    
+        pp(ns, `Growing after removing ${targetMoneyToRemove} results in ${growThreads} grow threads`)
+    
+        // Source for growthAnalyzeSecurity is currently 'return 2 * CONSTANTS.ServerFortifyAmount * threads;'
+        // https://github.com/danielyxie/bitburner/blob/master/src/NetscriptFunctions.ts,
+        // except it does a bunch of error correction to only allow the max number of threads etc etc etc
+        // We don't care, we just want the number.
+        // From https://github.com/danielyxie/bitburner/blob/master/src/Constants.ts, it's 0.002
+        const securityIncreaseFromGrow = 2 * 0.002 * growThreads
+        // const gAnalyzeResult = ns.growthAnalyzeSecurity(growThreads, target.hostname, 1)
+    
+        weakenThreadsForGrow = Math.ceil(securityIncreaseFromGrow / 0.05) + 1 // Adding one to cover 
+        pp(ns, `Weaken threads for ${growThreads} grow threads and ${securityIncreaseFromGrow} secutity increase: ${weakenThreadsForGrow}`)
+    
+        let hackBatch = {
+            hack: hackThreads,
+            weaken1: weakenThreadsForHack,
+            grow: growThreads,
+            weaken2: weakenThreadsForGrow
+        }
+    
+        pp(ns, `Hack batch: ${JSON.stringify(hackBatch, null, 2)}`)
+    
+        // Loop through the hack batch until we're full.
+        let awakenFromHackAt = awakenFromPrepareBatchAt
+        awakenFromHackAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, hackBatch, false, awakenFromHackAt)
+        pp(ns, `Hack batch after processing: ${JSON.stringify(hackBatch, null, 2)}`)
+    }
+}
+
+/** @param {import(".").NS } ns */
+function updateServerData(ns, desired) {
+    const serverMap = getItem(settings().keys.serverMap)
+
+    if (!serverMap || serverMap.lastUpdate < new Date().getTime() - settings().mapRefreshInterval) {
+        pp(ns, "Server refresh needed, spawning spider", true)
+        ns.spawn("spider.js", 1, "formulaHack.js", desired)
+        ns.exit()
+    }
+
+    serverMap.servers.home.ram = Math.max(0, serverMap.servers.home.ram - settings().homeRamReserved)
+
+    const rootedServers = getRootedServers(ns, serverMap.servers)
+
+    return [serverMap, rootedServers]
+}
+
 /** @param {import(".").NS } ns */
 export async function main(ns) {
     pp(ns, "Starting formulaHack.js", true)
@@ -329,6 +507,12 @@ export async function main(ns) {
     }
     pp(ns, `Desired: ${desired}`, true)
 
+    let numTargets = 1
+    if (ns.args.length > 1) {
+        numTargets = ns.args[1]
+    }
+    pp(ns, `Number of targets: ${numTargets}`)
+
     const actionStats = {
         grow: {
             script: 'grow.batch.js',
@@ -349,170 +533,36 @@ export async function main(ns) {
     while (true) {
         const serverExtraData = {}
 
-        const serverMap = getItem(settings().keys.serverMap)
-
-        if (!serverMap || serverMap.lastUpdate < new Date().getTime() - settings().mapRefreshInterval) {
-            pp(ns, "Server refresh needed, spawning spider", true)
-            ns.spawn("spider.js", 1, "formulaHack.js")
-            ns.exit()
-        }
-
-        serverMap.servers.home.ram = Math.max(0, serverMap.servers.home.ram - settings().homeRamReserved)
-
-        const rootedServers = getRootedServers(ns, serverMap.servers)
+        const serverData = updateServerData(ns, desired)
+        const serverMap = serverData[0]
+        const rootedServers = serverData[1]
 
         // Get the target server
-        let bestTarget = 'joesguns'
+        let targets = ['joesguns']
         if (desired === 'money' && ns.getPlayer().skills.hacking > ns.getServer('avmnite-02h').requiredHackingSkill) {
             const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
-            bestTarget = targetServers.shift()
+            
+            // Set the targets to the top N servers
+            targets = []
+            for (let i = 0; i < numTargets; i++) {
+                targets.push(targetServers.shift())
+            }
         }
 
         // TODO TEMP
         // bestTarget = 'foodnstuff'
-
-        let target = ns.getServer(bestTarget)
-        let home = ns.getServer('home')
-        const player = ns.getPlayer()
-
-        // Get the time it would take to run each script against the server
-        const actionTimes = getActionTimes(ns, target, player)
-        // pp(ns, `${JSON.stringify(actionTimes, null, 2)}`, true)
-        Object.keys(actionTimes).forEach(action => {
-            actionStats[action].time = actionTimes[action]
-        })
-
-        // Prepare server
-        // Set so we enter the while loop and get the REAL values
-        let weakenThreadsForMinimum = 1
-        let growThreads = 0
-        let weakenThreadsForGrow = 0
-        let availableRam = {}
-        // pp(ns, `ZERO. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
-        let awakenFromPrepareBatchAt = undefined
-        while (weakenThreadsForMinimum > 0 || growThreads > 0 || weakenThreadsForGrow > 0) {
-            availableRam = getAvailableRam(ns, rootedServers)
-
-            // pp(ns, `ONE. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
-            pp(ns, `ONE`)
-            // Weaken ALWAYS lowers the security level of the target by 0.05
-            // https://github.com/danielyxie/bitburner/blob/master/markdown/bitburner.ns.weaken.md
-            weakenThreadsForMinimum = Math.ceil((target.hackDifficulty - target.minDifficulty) / .05)
-
-            // By using home's cores, this is the minimum number of grow threads.
-            // If the home server fills up, we'll distribute these to other servers.
-            // Any remaining threads will be handled when we loop again,
-            // so the accuracy of "did we use the cores" is unimportant.
-            const desiredMoney = target.moneyMax * settings().maxMoneyMultiplier
-            growThreads = getGrowThreadsRequired(ns, target, target.moneyAvailable, desiredMoney, home.cpuCores)
-
-            // This method optionally takes 'cores', but ideally weaken is distributed to machines other than 'home'
-            weakenThreadsForGrow = Math.ceil(ns.growthAnalyzeSecurity(growThreads, target.hostname, 1) / 0.05)
-
-            let prepareTargetBatch = {
-                hack: 0,
-                weaken1: weakenThreadsForMinimum,
-                grow: growThreads,
-                weaken2: weakenThreadsForGrow
-            }
-
-            pp(ns, `Prepare target batch: ${JSON.stringify(prepareTargetBatch, null, 2)}`)
-            // ns.exit()
-
-            if (!target.hostname) {
-                pp(ns, `How did getServer(${bestTarget}) return ${JSON.stringify(target, null, 2)}`)
-            }
-
-            awakenFromPrepareBatchAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, prepareTargetBatch, true)
-
-            // ONLY RUN ONCE, TESTING
-            // pp(ns, `TWO. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`, true)
-            pp(ns, `PrepareTargetBatch after distribution: ${JSON.stringify(prepareTargetBatch, null, 2)}`)
-
-            // If we have any undistributed threads, we should sleep for the completion of the batch before we start the next one.
-            // If not, we can continue on to hacking.
-            growThreads = prepareTargetBatch.grow
-            weakenThreadsForMinimum = prepareTargetBatch.weaken1
-            weakenThreadsForGrow = prepareTargetBatch.weaken2
-            if (growThreads > 0 || weakenThreadsForMinimum > 0 || weakenThreadsForGrow > 0) {
-                const sleepFor = awakenFromPrepareBatchAt - performance.now()
-                pp(ns, `Preparation batch not distributed, sleeping for ${sleepFor}`, true)
-                await ns.sleep(sleepFor)
-            } else {
-                pp(ns, `Preparation batch fully distributed, start hack batch at ${awakenFromPrepareBatchAt}`)
-                await ns.sleep(10)
-            }
-
-            // Refresh the servers for up-to-date data
-            target = ns.getServer(bestTarget)
-            if (!target.hostname) {
-                pp(ns, `How did getServer(${bestTarget}) return ${JSON.stringify(target, null, 2)}`, true)
-            }
-            home = ns.getServer('home')
-
-            pp(ns, `End of loop. weakenMin: ${weakenThreadsForMinimum}, grow: ${growThreads}, weakenGrow: ${weakenThreadsForGrow}`)
+        let target = targets.shift()
+        while (target) {
+            await prepareAndHackTarget(ns, rootedServers, target, actionStats, desired)
+            target = targets.shift()
         }
 
-        // Hack server
-        const hackPercent = .1
-        const effectiveMaxMoney = target.moneyMax * settings().maxMoneyMultiplier
-        const targetMoneyToRemove = effectiveMaxMoney * hackPercent
-        
-        // Because we want to err on the side of fewer threads, we use floor
-        // However, that can make us hack for 0 threads if our hacking is too strong.
-        let hackThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(target.hostname, targetMoneyToRemove)))
-
-        // Err on having stolen more money so we need to grow more
-        const moneyStolen = Math.ceil(ns.hackAnalyze(target.hostname) * effectiveMaxMoney) * hackThreads
-        const moneyAvailableAfterHack = effectiveMaxMoney - moneyStolen
-        const securityIncrease = ns.hackAnalyzeSecurity(hackThreads, target.hostname)
-
-        // Weaken ALWAYS lowers the security level of the target by 0.05
-        // https://github.com/danielyxie/bitburner/blob/master/markdown/bitburner.ns.weaken.md
-        let weakenThreadsForHack = Math.ceil(securityIncrease / .05)
-
-        // Grow threads run on the home server due to exponential growth
-        const moneyTargetAfterGrow = target.moneyMax * settings().maxMoneyMultiplier
-        growThreads = getGrowThreadsRequired(ns, target, moneyAvailableAfterHack, moneyTargetAfterGrow, home.cpuCores)
-
-        // Everything's an approximation, so do one more grow than necessary to make sure we stay on top
-        if (hackThreads > 0) {
-            growThreads += 1
-        }
-
-        pp(ns, `Growing after removing ${targetMoneyToRemove} results in ${growThreads} grow threads`)
-
-        // Source for growthAnalyzeSecurity is currently 'return 2 * CONSTANTS.ServerFortifyAmount * threads;'
-        // https://github.com/danielyxie/bitburner/blob/master/src/NetscriptFunctions.ts,
-        // except it does a bunch of error correction to only allow the max number of threads etc etc etc
-        // We don't care, we just want the number.
-        // From https://github.com/danielyxie/bitburner/blob/master/src/Constants.ts, it's 0.002
-        const securityIncreaseFromGrow = 2 * 0.002 * growThreads
-        // const gAnalyzeResult = ns.growthAnalyzeSecurity(growThreads, target.hostname, 1)
-
-        weakenThreadsForGrow = Math.ceil(securityIncreaseFromGrow / 0.05) + 1 // Adding one to cover 
-        pp(ns, `Weaken threads for ${growThreads} grow threads and ${securityIncreaseFromGrow} secutity increase: ${weakenThreadsForGrow}`)
-
-        let hackBatch = {
-            hack: hackThreads,
-            weaken1: weakenThreadsForHack,
-            grow: growThreads,
-            weaken2: weakenThreadsForGrow
-        }
-
-        pp(ns, `Hack batch: ${JSON.stringify(hackBatch, null, 2)}`)
-
-        // Loop through the hack batch until we're full.
-        let awakenFromHackAt = awakenFromPrepareBatchAt
-        awakenFromHackAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, hackBatch, false, awakenFromHackAt)
-        pp(ns, `Hack batch after processing: ${JSON.stringify(hackBatch, null, 2)}`)
-            
         // while (hackBatch.hack > 0 || hackBatch.weaken1 > 0 || hackBatch.grow > 0 || hackBatch.weaken2 > 0) {
         //     const sleepTime = Math.max(100, awakenFromHackAt - performance.now())
         //     await ns.sleep(sleepTime)
         // }
 
-        await ns.sleep(1000)
+        await ns.sleep(200)
 
         // const sleepTime = Math.max(100, awakenFromHackAt - performance.now())
         // const sleepTime = 100
