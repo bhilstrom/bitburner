@@ -1,5 +1,23 @@
 import { settings, getItem, pp } from './common.js'
 
+export function getConnectionPath(ns, target, serverMap) {
+
+    if (ns.getHostname() !== 'home') {
+        throw new Error('Must get connection path from home')
+    }
+
+    if (!Object.keys(serverMap.servers).includes(target)) {
+        throw new Error(`${target} not present in server map`)
+    }
+
+    const path = []
+    while(target && target !== 'home') {
+        path.unshift(target)
+        target = serverMap.servers[target].parent
+    }
+
+    return path
+}
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
@@ -43,12 +61,11 @@ export async function main(ns) {
 
     pp(ns, `${target} found! Server: ${JSON.stringify(server, null, 2)}`, true)
 
-    let connectionString = server.backdoorInstalled ? '' : 'backdoor;'
-    while (target && target !== 'home') {
-        connectionString = `connect ${target};` + connectionString
-        target = serverMap.servers[target].parent
-    }
+    const connectionPath = getConnectionPath(ns, target, serverMap)
 
+    let connectionString = server.backdoorInstalled ? '' : 'backdoor;'
+    connectionPath.forEach(hostname => connectionString = `connect ${hostname};` + connectionString)
+    
     connectionString = `home;` + connectionString
 
     pp(ns, `Connection string copied to clipboard: ${connectionString}`, true)
