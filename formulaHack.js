@@ -1,4 +1,4 @@
-import { numberWithCommas, settings, getItem, pp } from './common.js'
+import { hasFormulasAccess, settings, getItem, pp } from './common.js'
 
 const hackingScripts = ['hack.js', 'grow.js', 'weaken.js', 'common.js', 'hack.batch.js', 'grow.batch.js', 'weaken.batch.js']
 
@@ -46,7 +46,7 @@ function getActionTimes(ns, server, player) {
 
     // Order is specifically: weaken, grow, hack
     // In case we happen to level up in between determing times, weaken should take the longest
-    if (ns.fileExists('Formulas.exe')) {
+    if (hasFormulasAccess(ns)) {
         return {
             weaken: ns.formulas.hacking.weakenTime(server, player),
             grow: ns.formulas.hacking.growTime(server, player),
@@ -408,7 +408,7 @@ async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionSta
     } else {
 
         // Hack server
-        const hackPercent = .1
+        const hackPercent = settings().hackPercent
         const effectiveMaxMoney = target.moneyMax * settings().maxMoneyMultiplier
         const targetMoneyToRemove = effectiveMaxMoney * hackPercent
     
