@@ -1,69 +1,4 @@
-import { settings, setItem, pp } from './common.js'
-
-/** @param {import(".").NS } ns */
-function brute(ns, host) {
-  ns.brutessh(host)
-}
-
-/** @param {import(".").NS } ns */
-function ftpcrack(ns, host) {
-  ns.ftpcrack(host)
-}
-
-/** @param {import(".").NS } ns */
-function relaySMTP(ns, host) {
-  ns.relaysmtp(host)
-}
-
-/** @param {import(".").NS } ns */
-function httpWorm(ns, host) {
-  ns.httpworm(host)
-}
-
-/** @param {import(".").NS } ns */
-function sqlInject(ns, host) {
-  ns.sqlinject(host)
-}
-
-const hackPrograms = [
-  {
-    name: 'BruteSSH.exe',
-    exe: brute,
-  },
-  {
-    name: 'FTPCrack.exe',
-    exe: ftpcrack,
-  },
-  {
-    name: 'relaySMTP.exe',
-    exe: relaySMTP,
-  },
-  {
-    name: 'HTTPWorm.exe',
-    exe: httpWorm,
-  },
-  {
-    name: 'SQLInject.exe',
-    exe: sqlInject,
-  }
-]
-
-/** @param {import(".").NS } ns */
-function getPlayerDetails(ns) {
-  const programs = []
-
-  hackPrograms.forEach((hackProgram) => {
-    if (ns.fileExists(hackProgram.name, 'home')) {
-      pp(ns, `Found hack program ${hackProgram.name}`)
-      programs.push(hackProgram)
-    }
-  })
-
-  return {
-    hackingLevel: ns.getHackingLevel(),
-    programs
-  }
-}
+import { getPlayerDetails, settings, setItem, pp } from './common.js'
 
 /** @param {import(".").NS } ns */
 function getServer(ns, host) {
@@ -115,7 +50,7 @@ export async function main(ns) {
       const neededPorts = server.ports
       const neededHackingLevel = server.hackingLevel
 
-      pp(ns, `Missing root on ${host}. Need ${neededPorts - playerDetails.programs.length} ports, ${neededHackingLevel - playerDetails.hackingLevel} Hack`, true)
+      pp(ns, `Missing root on ${host}. Need ${neededPorts - playerDetails.programs.length} ports, ${neededHackingLevel - playerDetails.hackingLevel} Hack`)
 
       if (neededPorts <= playerDetails.programs.length && neededHackingLevel <= playerDetails.hackingLevel) {
         pp(ns, `Gaining root on ${host}`)
