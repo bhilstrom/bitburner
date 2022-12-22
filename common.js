@@ -2,6 +2,7 @@
 
 export function settings() {
     return {
+        hackPercent: .1,
         homeRamReserved: 22,
         homeRamReservedBase: 22,
         homeRamExtraRamReserved: 12,
@@ -21,7 +22,7 @@ export function settings() {
           grow: 0.004,
           weaken: 0.05,
         },
-        decommissionFilename: 'decommission.txt'
+        decommissionFilename: 'decommission.txt',
     }
 }
 
@@ -64,4 +65,75 @@ export async function main(ns) {
         getItem,
         setItem,
     }
+}
+
+/** @param {import(".").NS } ns */
+function brute(ns, host) {
+  ns.brutessh(host)
+}
+
+/** @param {import(".").NS } ns */
+function ftpcrack(ns, host) {
+  ns.ftpcrack(host)
+}
+
+/** @param {import(".").NS } ns */
+function relaySMTP(ns, host) {
+  ns.relaysmtp(host)
+}
+
+/** @param {import(".").NS } ns */
+function httpWorm(ns, host) {
+  ns.httpworm(host)
+}
+
+/** @param {import(".").NS } ns */
+function sqlInject(ns, host) {
+  ns.sqlinject(host)
+}
+
+export function getHackPrograms() {
+    return [
+    {
+      name: 'BruteSSH.exe',
+      exe: brute,
+    },
+    {
+      name: 'FTPCrack.exe',
+      exe: ftpcrack,
+    },
+    {
+      name: 'relaySMTP.exe',
+      exe: relaySMTP,
+    },
+    {
+      name: 'HTTPWorm.exe',
+      exe: httpWorm,
+    },
+    {
+      name: 'SQLInject.exe',
+      exe: sqlInject,
+    }
+  ]
+}
+
+/** @param {import(".").NS } ns */
+export function getPlayerDetails(ns) {
+  const programs = []
+
+  getHackPrograms().forEach((hackProgram) => {
+    if (ns.fileExists(hackProgram.name, 'home')) {
+      pp(ns, `Found hack program ${hackProgram.name}`)
+      programs.push(hackProgram)
+    }
+  })
+
+  return {
+    hackingLevel: ns.getHackingLevel(),
+    programs
+  }
+}
+
+export function hasFormulasAccess(ns) {
+    return ns.fileExists('Formulas.exe', 'home')
 }
