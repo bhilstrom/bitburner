@@ -1,5 +1,7 @@
 import { pp } from './common.js'
 
+const CSEC = 'CyberSec'
+
 /** @param {import(".").NS } ns */
 async function waitUntilHacking10(ns) {
 
@@ -41,11 +43,11 @@ function commitCrime(ns) {
 async function commitCrimeUntilCSEC(ns) {
 
     // If we already have faction rep with CSEC, we already joined them
-    if (ns.singularity.getFactionRep('CSEC') > 0) {
+    if (ns.singularity.getFactionRep(CSEC) > 0) {
         return
     }
 
-    while (!ns.singularity.workForFaction('CSEC', 'Hacking contracts', false)) {
+    while (!ns.singularity.workForFaction(CSEC, 'Hacking contracts', false)) {
         commitCrime(ns)
         await ns.sleep(1000)
     }
@@ -63,7 +65,7 @@ export async function main(ns) {
 
     await commitCrimeUntilCSEC(ns)
 
-    ns.singularity.workForFaction('CSEC', 'Hacking contracts', false)
+    ns.singularity.workForFaction(CSEC, 'Hacking contracts', false)
 
     /* Script
     Sleeve thread:
