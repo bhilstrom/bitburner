@@ -18,6 +18,10 @@
 ]
 */
 
+export function getMaxGangSize() {
+    return 12
+}
+
 export function getTrainingTaskName(isHackGang) {
     return isHackGang ? 'Train Hacking' : 'Train Combat'
 }
