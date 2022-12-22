@@ -137,3 +137,40 @@ export function getPlayerDetails(ns) {
 export function hasFormulasAccess(ns) {
     return ns.fileExists('Formulas.exe', 'home')
 }
+
+export function getFactions() {
+    return [
+        'CyberSec',
+        'Tian Di Hui',
+        'Netburners',
+        'Shadows of Anarchy',
+        'Sector-12',
+        'Chongqing',
+        'New Tokyo',
+        'Ishima',
+        'Aevum',
+        'Volhaven',
+        'NiteSec',
+        'The Black Hand',
+        'BitRunners',
+        'ECorp',
+        'MegaCorp',
+        'KuaiGong International',
+        'Four Sigma',
+        'NWO',
+        'Blade Industries',
+        'OmniTek Incorporated',
+        'Bachman & Associates',
+        'Clarke Incorporated',
+        'Fulcrum Secret Technologies',
+        'Slum Snakes',
+        'Tetrads',
+        'Silhouette',
+        'Speakers for the Dead',
+        'The Dark Army',
+        'The Syndicate',
+        'The Covenant',
+        'Daedalus',
+        'Illuminati',
+    ]
+}
