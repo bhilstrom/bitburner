@@ -1,27 +1,27 @@
 import { hasFormulasAccess, pp } from './common.js'
 
-/** @param {import(".").NS } ns */
-function getUniversityGain(ns) {
-    if (hasFormulasAccess(ns)) {
-        return ns.formulas.work.classGains(ns.getPlayer(), 'Study Computer Science', 'Rothman University').hackExp
-    }
+// /** @param {import(".").NS } ns */
+// function getUniversityGain(ns) {
+//     if (hasFormulasAccess(ns)) {
+//         return ns.formulas.work.classGains(ns.getPlayer(), 'Study Computer Science', 'Rothman University').hackExp
+//     }
 
-    return 1
-}
+//     return 1
+// }
 
-/** @param {import(".").NS } ns */
-function getTrainingOptions(ns) {
-    return {
-        university: {
-            exe: (sleeveNumber, faction) => ns.sleeve.setToUniversityCourse(sleeveNumber),
-            gainPerSecond: getUniveristyGains(ns)
-        },
-        fieldWork: {
-            exe: (sleeveNumber, faction) => ns.sleeve.setToFactionWork(sleeveNumber, faction, 'Field Work'),
-            gainPerSecond: 
-        }
-    }
-}
+// /** @param {import(".").NS } ns */
+// function getTrainingOptions(ns) {
+//     return {
+//         university: {
+//             exe: (sleeveNumber, faction) => ns.sleeve.setToUniversityCourse(sleeveNumber),
+//             gainPerSecond: getUniveristyGains(ns)
+//         },
+//         fieldWork: {
+//             exe: (sleeveNumber, faction) => ns.sleeve.setToFactionWork(sleeveNumber, faction, 'Field Work'),
+//             gainPerSecond: 
+//         }
+//     }
+// }
 
 /** @param {import(".").NS } ns */
 function trainHacking(ns, sleeveNumber) {
@@ -30,7 +30,6 @@ function trainHacking(ns, sleeveNumber) {
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
-
 
 
     // while (true) {

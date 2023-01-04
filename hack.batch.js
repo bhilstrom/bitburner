@@ -1,4 +1,4 @@
-import { pp } from './common.js'
+import { localeHHMMSS, pp } from './common.js'
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
@@ -9,7 +9,7 @@ export async function main(ns) {
     let currentTime = performance.now()
 
     const delay = timeToLand - currentTime - runtime
-    pp(ns, `Sleeping for ${delay}. Landing time: ${timeToLand}`)
+    pp(ns, `Sleeping for ${delay}. Landing time: ${localeHHMMSS(timeToLand)}`)
     await ns.sleep(delay)
 
     pp(ns, `Starting operation: hack on ${target}`)

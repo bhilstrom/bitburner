@@ -130,6 +130,11 @@ export async function main(ns) {
         await backdoorHost(ns, hostname)
     }
 
+    // Once we can backdoor run4theh111z, we definitely have enough machine to share.
+    if (!ns.scriptRunning('share.js', 'home')) {
+        ns.exec('share.js', 'home')
+    }
+
     /* Script
     Sleeve thread:
     Shock recovery down to 5

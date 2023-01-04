@@ -61,7 +61,8 @@ export async function main(ns) {
 
     pp(ns, `${target} found! Server: ${JSON.stringify(server, null, 2)}`, true)
 
-    const connectionPath = getConnectionPath(ns, target, serverMap)
+    // Connection path is reversed here, because we build it backwards
+    const connectionPath = getConnectionPath(ns, target, serverMap).reverse()
 
     let connectionString = server.backdoorInstalled ? '' : 'backdoor;'
     connectionPath.forEach(hostname => connectionString = `connect ${hostname};` + connectionString)

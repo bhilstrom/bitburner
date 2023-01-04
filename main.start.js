@@ -8,6 +8,7 @@ export async function main(ns) {
     ].forEach(logName => ns.disableLog(logName))
 
     ns.exec('main.early.js', 'home')
+    ns.exec('sleeve.train.js', 'home')
     ns.exec('main.factions.js', 'home')
 
     /* Script
