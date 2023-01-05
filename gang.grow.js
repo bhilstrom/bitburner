@@ -119,6 +119,7 @@ function getEquipmentToPurchase(ns, isHackGang) {
 function purchaseEquipment(ns, memberInfo, equipmentToPurchase) {
     for (let i = 0; i < equipmentToPurchase.length; i++) {
         const equipment = equipmentToPurchase[i]
+
         if (memberInfo.upgrades.includes(equipment)) {
             continue
         }
@@ -142,9 +143,10 @@ function purchaseEquipment(ns, memberInfo, equipmentToPurchase) {
  */
 async function purchaseAllEquipment(ns, memberInfos, equipmentToPurchase) {
     for (let i = 0; i < memberInfos.length; i++) {
-        const memberInfo = memberInfos[i]
+        let memberInfo = memberInfos[i]
         while (!purchaseEquipment(ns, memberInfo, equipmentToPurchase)) {
             await ns.sleep(30 * 1000)
+            memberInfo = ns.gang.getMemberInformation(memberInfo.name)
         }
     }
 }
@@ -225,8 +227,8 @@ export async function main(ns) {
             ns.gang.setMemberTask(sortedMemberNames[i], trainingTask)
         }
 
-        members = ns.gang.getMemberNames()
         await ns.sleep(30 * 1000)
+        members = ns.gang.getMemberNames()
     }
 
     pp(ns, `Max gang member count of ${getMaxGangSize()} acquired!`, true)
