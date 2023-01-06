@@ -2,6 +2,58 @@ import { pp } from './common.js'
 
 const CSEC = 'CyberSec'
 
+const CRIME_NAMES_MAP = {
+    'Shoplift': 'SHOPLIFT',
+    'Rob Store': 'ROBSTORE',
+    'Mug': 'MUG',
+    'Larceny': 'LARCENY',
+    'Deal Drugs': 'DRUGS',
+    'Bond Forgery': 'BONDFORGERY',
+    'Traffick Arms': 'TRAFFICKARMS',
+    'Homicide': 'HOMICIDE',
+    'Grand Theft Auto': 'GRANDTHEFTAUTO',
+    'Kidnap': 'KIDNAP',
+    'Assassination': 'ASSASSINATION',
+    'Heist': 'HEIST',
+}
+
+const FACTIONS_WITH_NO_CONFLICTS = [
+    'CyberSec',
+    'Tian Di Hui',
+    'Netburners',
+    'Shadows of Anarchy',
+    'Slum Snakes',
+    'Tetrads',
+    'Silhouette',
+    'Speakers for the Dead',
+    'The Dark Army',
+    'The Syndicate',
+    'NiteSec',
+    'The Black Hand',
+    'BitRunners',
+    'ECorp',
+    'MegaCorp',
+    'KuaiGong International',
+    'Four Sigma',
+    'NWO',
+    'Blade Industries',
+    'OmniTek Incorporated',
+    'Bachman & Associates',
+    'Clarke Incorporated',
+    'Fulcrum Secret Technologies',
+    'The Covenant',
+    'Daedalus',
+    'Illuminati',
+
+]
+
+/** @param {import(".").NS } ns */
+function joinMostFactions(ns) {
+    ns.singularity.checkFactionInvitations()
+        .filter(faction => FACTIONS_WITH_NO_CONFLICTS.includes(faction))
+        .forEach(faction => ns.singularity.joinFaction(faction))
+}
+
 /** @param {import(".").NS } ns */
 async function waitUntilHacking10(ns) {
 
@@ -32,9 +84,12 @@ function commitCrime(ns) {
             break
         }
     }
-    
+
     // If the player is currently doing that work, don't restart it
-    // ns.singularity.getCurrentWork()
+    const currentWork = ns.singularity.getCurrentWork()
+    if (currentWork.type == 'CRIME' && CRIME_NAMES_MAP[targetCrime] === currentWork.crimeType) {
+        return
+    }
 
     ns.singularity.commitCrime(targetCrime, false)
 }
@@ -67,34 +122,8 @@ export async function main(ns) {
 
     ns.singularity.workForFaction(CSEC, 'Hacking contracts', false)
 
-    /* Script
-    Sleeve thread:
-    Shock recovery down to 5
-    If no gang:
-        Train skills up to homicide
-        Murder until we can start a gang
-    Else:
-        Hack factions or university
-
-
-    Faction thread:
-    train hacking to 10
-    shoplift until robbing a store has 100% success
-    rob store
-    (wait until CSEC)
-    hacking CSEC
-
-    Hacking thread:
-    (wait until hacking 10)
-    run spider, then formulaHack joesguns
-    buy tor router
-    buy BruteSSH
-    run spider, restart formulaHack joesguns because of new servers available
-    (wait until CSEC)
-    backdoor CSEC
-    join CSEC
-    (wait until avm)
-    backdoor avm
-    join avm
-    */
+    while(true) {
+        joinMostFactions(ns)
+        await ns.sleep(10 * 1000)
+    }
 }
