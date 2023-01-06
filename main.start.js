@@ -7,9 +7,12 @@ export async function main(ns) {
         "sleep",
     ].forEach(logName => ns.disableLog(logName))
 
+    ns.exec('main.upgrade.js', 'home')
     ns.exec('main.early.js', 'home')
-    ns.exec('sleeve.train.js', 'home')
     ns.exec('main.factions.js', 'home')
+    ns.exec('sleeve.train.js', 'home')
+
+    // Purchase enough 
 
     /* Script
     Sleeve thread:
