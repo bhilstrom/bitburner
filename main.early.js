@@ -26,8 +26,38 @@ async function runAndWaitForSpider(ns) {
 }
 
 /** @param {import(".").NS } ns */
+function getHackProgramAndArgs(ns) {
+    let result = {
+        program: 'formulaHack.js',
+        args: 'joesguns'
+    }
+
+    let ramRequiredForFormulaHack = ns.getScriptRam(result.program)
+    ramRequiredForFormulaHack += settings().homeRamReserved
+
+    // formulaHack requires at least one 'grow' instance to actually DO anything
+    ramRequiredForFormulaHack += ns.getScriptExpGain('grow.batch.js')
+
+    const homeServer = ns.getServer(home)
+    const ramAvailable = homeServer.maxRam - homeServer.ramUsed
+    if (ramAvailable < ramRequiredForFormulaHack) {
+
+        pp(ns, `Only ${ramAvailable} RAM available, ${ramRequiredForFormulaHack} required to run formulaHack.js, running primaryHack.js instead`, true)
+        result = {
+            program: 'primaryHack.js',
+            args: 'early'
+        }
+    }
+
+    return result
+}
+
+/** @param {import(".").NS } ns */
 async function startHackingOnJoesGuns(ns) {
-    if (ns.scriptRunning('formulaHack.js', 'home')) {
+
+    const programAndArgs = getHackProgramAndArgs(ns)
+
+    if (ns.scriptRunning(programAndArgs.program, 'home')) {
         pp(ns, 'Hack script is already running', true)
         return
     }
@@ -35,8 +65,8 @@ async function startHackingOnJoesGuns(ns) {
     // Make sure joesguns is rooted
     await runAndWaitForSpider(ns)
 
-    pp(ns, 'Running formulaHack on joesguns', true)
-    ns.exec('formulaHack.js', 'home', 1, 'joesguns')
+    pp(ns, `Running ${programAndArgs.program}`, true)
+    ns.exec(programAndArgs.program, 'home', 1, programAndArgs.args)
 }
 
 /** @param {import(".").NS } ns */
@@ -108,6 +138,22 @@ async function backdoorHost(ns, hostname) {
 }
 
 /** @param {import(".").NS } ns */
+async function buyAllDarkwebPrograms(ns) {
+    const allPrograms = ns.singularity.getDarkwebPrograms()
+    for (let i = 0; i < allPrograms.length; i++) {
+        const program = allPrograms[i]
+        if (!ns.fileExists(program, 'home')) {
+            pp(ns, `Purchasing ${program} from darkweb`)
+            while (!ns.singularity.purchaseProgram(program)) {
+                pp(ns, `... failed to purchase ${program}, waiting...`)
+                await ns.sleep(30 * 1000)
+            }
+            pp(ns, `Purchased ${program}!`)
+        }
+    }
+}
+
+/** @param {import(".").NS } ns */
 export async function main(ns) {
 
     [
@@ -128,6 +174,11 @@ export async function main(ns) {
     for (let i = 0; i < factionHosts.length; i++) {
         const hostname = factionHosts[i]
         await backdoorHost(ns, hostname)
+
+        // Once we've hacked The Black Hand, we should have enough money to buy the rest of the darkweb programs
+        if (i == 2) {
+            await buyAllDarkwebPrograms(ns)
+        }
     }
 
     // Once we can backdoor run4theh111z, we definitely have enough machine to share.
