@@ -38,7 +38,7 @@ function getHackProgramAndArgs(ns) {
     // formulaHack requires at least one 'grow' instance to actually DO anything
     ramRequiredForFormulaHack += ns.getScriptExpGain('grow.batch.js')
 
-    const homeServer = ns.getServer(home)
+    const homeServer = ns.getServer('home')
     const ramAvailable = homeServer.maxRam - homeServer.ramUsed
     if (ramAvailable < ramRequiredForFormulaHack) {
 
