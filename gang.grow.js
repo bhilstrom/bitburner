@@ -224,7 +224,7 @@ export async function main(ns) {
         }
 
         for (let i = numMembersForCrime; i < members.length; i++) {
-            ns.gang.setMemberTask(sortedMemberNames[i], trainingTask)
+            ns.gang.setMemberTask(sortedMemberInfos[i].name, trainingTask)
         }
 
         await ns.sleep(30 * 1000)
