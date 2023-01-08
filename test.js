@@ -3,6 +3,9 @@ import { localeHHMMSS, settings, getItem, pp } from './common.js'
 /** @param {import(".").NS } ns */
 export function main(ns) {
 
-    pp(ns, JSON.stringify(ns.singularity.getCurrentWork(), null, 2), true)
-    
+    const script = ns.args[0]
+
+    const ramUsed = ns.getScriptRam(script)
+
+    pp(ns, `${script} uses ${ramUsed} RAM`, true)
 }
