@@ -23,6 +23,14 @@ export function settings() {
     }
 }
 
+/** @param {import(".").NS } ns */
+export async function runAndWaitForSpider(ns) {
+    ns.exec('spider.js', 'home', 1)
+    while (ns.scriptRunning('spider.js', 'home')) {
+        await ns.sleep(1000)
+    }
+}
+
 export function numberWithCommas(x) {
     return x.toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ',')
 }
