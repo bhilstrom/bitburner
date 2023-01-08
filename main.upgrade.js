@@ -16,4 +16,6 @@ export async function main(ns) {
         await ns.sleep(60 * 1000)
         home = ns.getServer('home')
     }
+
+    pp(ns, `We have ${home.maxRam} RAM available on home server, that's enough for now. Exiting.`, true)
 }
