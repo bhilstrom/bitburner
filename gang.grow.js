@@ -178,7 +178,7 @@ export async function main(ns) {
     }
     while (members.length < 6) {
 
-        memberInfos = members.map(name => ns.gang.getMemberInformation(name))
+        let memberInfos = members.map(name => ns.gang.getMemberInformation(name))
         memberInfos.forEach(memberInfo => {
 
             // Train until we have at least 30 in the stat, so mugging is at least kind of successful.
