@@ -3,6 +3,7 @@ import { getMaxGangSize, getTrainingTaskName } from './gang.common'
 
 const DELAY_AFTER_ASSIGNMENT = 100
 const COMBAT_WIN_THRESHOLD = .75
+const COMBAT_EASY_THRESHOLD = .9
 
 const ASCENSION_MULTIPLIERS = {
     hacking: [
@@ -98,10 +99,6 @@ function assignToTask(ns, memberInfo, task) {
     }
 }
 
-async function purchaseWarfareEquipment(ns, memberName) {
-    return
-}
-
 /** @param {import(".").NS } ns */
 function getEquipmentToPurchase(ns, isHackGang) {
     return ns.gang.getEquipmentNames()
@@ -169,6 +166,8 @@ export async function main(ns) {
     // Other half should train.
     const trainingTask = getTrainingTaskName(isHackGang)
     const wantedLevelRemovalCrime = getWantedLevelRemovalCrime(isHackGang)
+    const moneyCrime = getMoneyCrime(isHackGang)
+    const territoryWarfare = 'Territory Warfare'
     let members = ns.gang.getMemberNames()
 
     // Mug people until we have 6 members, because mugging is safe
@@ -234,34 +233,15 @@ export async function main(ns) {
     pp(ns, `Max gang member count of ${getMaxGangSize()} acquired!`, true)
 
     // We have max gang. Time to get territory.
-    // The top stat member is ALWAYS doing reputation gain.
-    // Each other member trains until 2k in all combat stats.
-    // Everyone above 2k in combat stats does Territory Warfare.
-    // Once we have at least 2x the next highest gang's stats, start fighting.
+    // Once we have at least a 75% chance to win all fights, start fighting.
+    // Once we have a >90% chance to win all fights, make money while taking some people off fighting.
     // Loop until we own everything
     let gangInfo = ns.gang.getGangInformation()
     while (gangInfo.territory < 1) {
 
-        const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
-
-        let crimeForRep = getCrimeForRep(sortedMemberInfos[0], isHackGang)
-        assignToTask(ns, sortedMemberInfos[0], crimeForRep)
-
-        for (let i = 1; i < sortedMemberInfos.length; i++) {
-            const memberInfo = sortedMemberInfos[i]
-
-            if (getLowestAscensionStat(memberInfo, isHackGang) < 2000) {
-                assignToTask(ns, memberInfo, trainingTask)
-            } else {
-                assignToTask(ns, memberInfo, 'Territory Warfare')
-                await purchaseWarfareEquipment(ns, memberInfo.name)
-            }
-        }
-
-        // If other gangs are stronger, keep war off.
-        // Otherwise, turn on war
         const otherGangInfo = ns.gang.getOtherGangInformation()
-        if (Object.keys(otherGangInfo).some(gangName => {
+        let lowestChanceToWin = Number.MAX_SAFE_INTEGER
+        Object.keys(otherGangInfo).forEach(gangName => {
 
             // Don't compare us against our own gang.
             if (gangName == gangInfo.faction) {
@@ -269,20 +249,70 @@ export async function main(ns) {
             }
 
             const otherGang = otherGangInfo[gangName]
-
             const chanceToWin = ns.gang.getChanceToWinClash(gangName)
-            const otherIsStronger = chanceToWin < COMBAT_WIN_THRESHOLD
-            if (otherIsStronger) {
-                pp(ns, `We have a ${chanceToWin} chance to win against ${gangName}, which is below the threshold of ${COMBAT_WIN_THRESHOLD}`)
+            lowestChanceToWin = Math.min(lowestChanceToWin, chanceToWin)
+        })
+        pp(ns, `Lowest chance to win against another gang is ${lowestChanceToWin}`)
+
+        const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
+
+        if (lowestChanceToWin < COMBAT_EASY_THRESHOLD) {
+            // We need lots of people in territory warfare.
+            // Top person does reputation gain, to ensure we don't lose all our rep.
+            // Everyone under 2k stats trains
+            // Everyone above that does Territory Warface
+            let crimeForRep = getCrimeForRep(sortedMemberInfos[0], isHackGang)
+            assignToTask(ns, sortedMemberInfos[0], crimeForRep)
+
+            for (let i = 1; i < sortedMemberInfos.length; i++) {
+                const memberInfo = sortedMemberInfos[i]
+
+                if (getLowestAscensionStat(memberInfo, isHackGang) < 2000) {
+                    assignToTask(ns, memberInfo, trainingTask)
+                } else {
+                    assignToTask(ns, memberInfo, territoryWarfare)
+                }
             }
-            return otherIsStronger
-        })) {
-            ns.gang.setTerritoryWarfare(false)
         } else {
-            if (!gangInfo.territoryWarfareEngaged) {
-                pp(ns, "We're the strongest gang. WAAAAAAGH!", true)
-                ns.gang.setTerritoryWarfare(true)
+            // We're winning easily. Work assignment is now as follows:
+            // 1. Territory
+            // 2. Territory
+            // 3. Rep
+            // 4. Money
+            // ?-? Negative rep fixing, if any needed
+            // ?-12 Train
+            assignToTask(ns, sortedMemberInfos[0], territoryWarfare)
+            assignToTask(ns, sortedMemberInfos[1], territoryWarfare)
+
+            let crimeForRep = getCrimeForRep(sortedMemberInfos[2], isHackGang)
+            assignToTask(ns, sortedMemberInfos[2], crimeForRep)
+
+            assignToTask(ns, sortedMemberInfos[3], moneyCrime)
+
+            // The gang info doesn't update instantly, so we need to delay slightly before our math works
+            await ns.sleep(DELAY_AFTER_ASSIGNMENT)
+
+            // Assign as many people to wanted level removal as is necessary
+            let task = getTargetCrimeOrWantedRemoval(ns, trainingTask, wantedLevelRemovalCrime)
+            let index = 4
+            while (task !== trainingTask) {
+                assignToTask(ns, sortedMemberInfos[index], task)
+                index += 1
+                await ns.sleep(DELAY_AFTER_ASSIGNMENT)
+                task = getTargetCrimeOrWantedRemoval(ns, trainingTask, wantedLevelRemovalCrime)
             }
+
+            // Everyone else trains
+            for (let i = index; i < sortedMemberInfos.length; i++) {
+                assignToTask(ns, sortedMemberInfos[i], trainingTask)
+            }
+        }
+
+        // Combat should be ON if we're above the win threshold, OFF otherwise
+        let shouldFight = lowestChanceToWin > COMBAT_WIN_THRESHOLD
+        if (gangInfo.territoryWarfareEngaged !== shouldFight) {
+            pp(ns, `Updating territory warface to '${shouldFight}'`, true)
+            ns.gang.setTerritoryWarfare(shouldFight)
         }
 
         await ns.sleep(30 * 1000)
@@ -294,7 +324,6 @@ export async function main(ns) {
     // We own everything. Turn off territory combat and make money
     ns.gang.setTerritoryWarfare(false)
 
-    const moneyCrime = getMoneyCrime(isHackGang)
     while (true) {
 
         const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
@@ -311,17 +340,23 @@ export async function main(ns) {
 
             memberInfo = sortedMemberInfos[i]
 
+            // Priority is as follows:
+            // 1. Wanted level removal
+            // 2. Training to 7k as lowest stat
+            // 3. Make money
             let crime = getTargetCrimeOrWantedRemoval(ns, moneyCrime, wantedLevelRemovalCrime)
-            let crimeForRep = getCrimeForRep(memberInfo, isHackGang)
-            if (crime === crimeForRep && getLowestAscensionStat(memberInfo, isHackGang) < 7000) {
+            if (crime === moneyCrime && getLowestAscensionStat(memberInfo, isHackGang) < 7000) {
                 crime = trainingTask
-            } else {
-                purchaseEquipment(ns, memberInfo, RELEVANT_EQUIPMENT)
             }
 
-            if (crime !== moneyCrime) {
+            // Anyone assigned to make money has their stats above 7k,
+            // so we should buy them all the equipment to maximize profits.
+            if (crime === moneyCrime) {
+                purchaseEquipment(ns, memberInfo, RELEVANT_EQUIPMENT)
+            } else {
                 anyNotMakingMoney = true
             }
+
             assignToTask(ns, memberInfo, crime)
         }
 
