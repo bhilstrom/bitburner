@@ -1,6 +1,7 @@
 import { pp } from './common.js'
 
 const STAT_THRESHOLD = 140
+const SHOCK_THRESHOLD = .5
 
 function anySleeveBelowThreshold(ns) {
 
@@ -30,6 +31,27 @@ function forEachSleeve(ns, func) {
 }
 
 /** @param {import(".").NS } ns */
+async function shockRecover(ns) {
+
+    let sleeveInShock = true // Set to true so we enter the while loop
+    while (sleeveInShock) {
+        sleeveInShock = false
+        forEachSleeve(ns, (sleeveNum) => {
+            const sleeveStats = ns.sleeve.getSleeveStats(sleeveNum)
+            if (sleeveStats.shock > SHOCK_THRESHOLD) {
+                sleeveInShock = true
+                ns.sleeve.setToShockRecovery(sleeveNum)
+            }
+        })
+
+        // Don't wait for no reason
+        if (sleeveInShock) {
+            await ns.sleep(30 * 1000)
+        }
+    }
+}
+
+/** @param {import(".").NS } ns */
 async function mugUntilThreshold(ns) {
 
     if (!anySleeveBelowThreshold(ns)) {
@@ -54,6 +76,8 @@ export async function main(ns) {
 
     ns.disableLog('sleep')
 
+    await shockRecover(ns)
+
     await mugUntilThreshold(ns)
 
     pp(ns, 'Starting homicides', true)
@@ -68,8 +92,48 @@ export async function main(ns) {
     }
 
     pp(ns, 'Finished waiting for karma, setting all sleeves to shock recovery')
-
     forEachSleeve(ns, (sleeveNum) => {
         ns.sleeve.setToShockRecovery(sleeveNum)
+    })
+
+    pp(ns, 'Starting gang management', true)
+
+    const availableCombatFactions = [
+        'The Syndicate',
+        'Slum Snakes',
+    ]
+
+    let factionForGang = undefined
+    for (let i = 0; i < availableCombatFactions.length; i++) {
+        const availableCombatFaction = availableCombatFactions[i]
+
+        if (ns.singularity.checkFactionInvitations().includes(availableCombatFaction)) {
+            ns.singularity.joinFaction(availableCombatFaction)
+            factionForGang = availableCombatFaction
+            break
+        }
+
+        if (ns.getPlayer().factions.includes(availableCombatFaction)) {
+            factionForGang = availableCombatFaction
+            break
+        }
+    }
+
+    if (factionForGang === undefined) {
+        throw new Error('Unable to find a combat faction to create a gang.')
+    }
+
+    ns.gang.createGang(factionForGang)
+
+    const scripts = [
+        'gang.recruit.js',
+        'gang.ascend.js',
+        'gang.grow.js',
+    ]
+
+    scripts.forEach(script => {
+        if (!ns.exec(script, 'home')) {
+            throw new Error(`Failed to start gang script ${script}`)
+        }
     })
 }
