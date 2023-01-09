@@ -87,7 +87,7 @@ function commitCrime(ns) {
 
     // If the player is currently doing that work, don't restart it
     const currentWork = ns.singularity.getCurrentWork()
-    if (currentWork.type == 'CRIME' && CRIME_NAMES_MAP[targetCrime] === currentWork.crimeType) {
+    if (currentWork !== null && currentWork.type == 'CRIME' && CRIME_NAMES_MAP[targetCrime] === currentWork.crimeType) {
         return
     }
 
