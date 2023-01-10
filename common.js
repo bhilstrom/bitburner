@@ -3,7 +3,7 @@
 export function settings() {
     return {
         hackPercent: .1,
-        homeRamReserved: 22,
+        homeRamReserved: 30,
         minSecurityLevelOffset: 1,
         maxMoneyMultiplier: 1,
         minSecurityWeight: 100,
@@ -25,7 +25,10 @@ export function settings() {
 
 /** @param {import(".").NS } ns */
 export async function runAndWaitForSpider(ns) {
-    ns.exec('spider.js', 'home', 1)
+    if (!ns.exec('spider.js', 'home', 1)) {
+      throw new Error('Failed to start spider.js')
+    }
+
     while (ns.scriptRunning('spider.js', 'home')) {
         await ns.sleep(1000)
     }
