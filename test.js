@@ -3,9 +3,11 @@ import { localeHHMMSS, settings, getItem, pp } from './common.js'
 /** @param {import(".").NS } ns */
 export function main(ns) {
 
-    const script = ns.args[0]
+    let index = 0
+    pp(ns, `Index: ${index}`, true)
+    pp(ns, `Index: ${index++}`, true)
+    pp(ns, `Index: ${index++}`, true)
+    pp(ns, `Index: ${index++}`, true)
+    pp(ns, `Index: ${index++}`, true)
 
-    const ramUsed = ns.getScriptRam(script)
-
-    pp(ns, `${script} uses ${ramUsed} RAM`, true)
 }
