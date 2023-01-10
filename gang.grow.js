@@ -279,18 +279,19 @@ export async function main(ns) {
         } else {
             // We're winning easily. Work assignment is now as follows:
             // 1. Territory
-            // 2. Territory
-            // 3. Rep
-            // 4. Money
+            // 2. Rep
+            // 3-5. Money
             // ?-? Negative rep fixing, if any needed
             // ?-12 Train
-            assignToTask(ns, sortedMemberInfos[0], territoryWarfare)
-            assignToTask(ns, sortedMemberInfos[1], territoryWarfare)
+            let memberIndex = 0
+            assignToTask(ns, sortedMemberInfos[memberIndex++], territoryWarfare)
 
-            let crimeForRep = getCrimeForRep(sortedMemberInfos[2], isHackGang)
-            assignToTask(ns, sortedMemberInfos[2], crimeForRep)
+            let crimeForRep = getCrimeForRep(sortedMemberInfos[memberIndex++], isHackGang)
+            assignToTask(ns, sortedMemberInfos[memberIndex++], crimeForRep)
 
-            assignToTask(ns, sortedMemberInfos[3], moneyCrime)
+            assignToTask(ns, sortedMemberInfos[memberIndex++], moneyCrime)
+            assignToTask(ns, sortedMemberInfos[memberIndex++], moneyCrime)
+            assignToTask(ns, sortedMemberInfos[memberIndex++], moneyCrime)
 
             // The gang info doesn't update instantly, so we need to delay slightly before our math works
             await ns.sleep(DELAY_AFTER_ASSIGNMENT)
