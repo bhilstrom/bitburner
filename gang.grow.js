@@ -198,6 +198,9 @@ export async function main(ns) {
     }
     pp(ns, 'We have at least 6 members, transitioning to long term growth strategy.', true)
 
+    // 10 members happens around stat level 550
+    // 11 members happens around stat level 630
+    // 12 members happens around stat level 1000+ (?)
     while (members.length < getMaxGangSize()) {
 
         const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
@@ -295,7 +298,7 @@ export async function main(ns) {
             // Assign as many people to wanted level removal as is necessary
             let task = getTargetCrimeOrWantedRemoval(ns, trainingTask, wantedLevelRemovalCrime)
             let index = 4
-            while (task !== trainingTask) {
+            while (task !== trainingTask && index < sortedMemberInfos.length) {
                 assignToTask(ns, sortedMemberInfos[index], task)
                 index += 1
                 await ns.sleep(DELAY_AFTER_ASSIGNMENT)
