@@ -273,7 +273,7 @@ export async function main(ns) {
             assignToTask(ns, sortedMemberInfos[memberIndex++], territoryWarfare)
 
             let crimeForRep = getCrimeForRep(memberIndex, isHackGang)
-            assignToTask(ns, memberIndex++, crimeForRep)
+            assignToTask(ns, sortedMemberInfos[memberIndex++], crimeForRep)
 
             for (let i = memberIndex; i < sortedMemberInfos.length; i++) {
                 const memberInfo = sortedMemberInfos[i]
