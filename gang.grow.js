@@ -201,7 +201,9 @@ export async function main(ns) {
     // 10 members happens around stat level 550
     // 11 members happens around stat level 630
     // 12 members happens around stat level 1000+ (?)
-    while (members.length < getMaxGangSize()) {
+    // Max gang size takes too long to start territory warfare productively.
+    const desiredGangCount = 11
+    while (members.length < desiredGangCount) {
 
         const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
 
@@ -233,7 +235,7 @@ export async function main(ns) {
         members = ns.gang.getMemberNames()
     }
 
-    pp(ns, `Max gang member count of ${getMaxGangSize()} acquired!`, true)
+    pp(ns, `Gang member count of ${desiredGangCount} acquired. Starting first people on Territory Warfare`, true)
 
     // We have max gang. Time to get territory.
     // Once we have at least a 75% chance to win all fights, start fighting.
@@ -263,8 +265,10 @@ export async function main(ns) {
             // We need lots of people in territory warfare.
             // Top person does Territory Warfare, to start our numbers early.
             // Top person does reputation gain, to ensure we don't lose all our rep.
-            // Everyone under 2k stats trains
-            // Everyone above that does Territory Warfare
+            // Everyone else:
+            // 1. If we're not at max gang size and they're in the top half of indexes: rep gain.
+            // 2. Else if under 2k stats: train
+            // 3. Else: Territory Warfare
             let memberIndex = 0
             assignToTask(ns, sortedMemberInfos[memberIndex++], territoryWarfare)
 
@@ -273,12 +277,17 @@ export async function main(ns) {
 
             for (let i = memberIndex; i < sortedMemberInfos.length; i++) {
                 const memberInfo = sortedMemberInfos[i]
+                crimeForRep = getCrimeForRep(memberIndex, isHackGang)
 
-                if (getLowestAscensionStat(memberInfo, isHackGang) < 2000) {
-                    assignToTask(ns, memberInfo, trainingTask)
-                } else {
-                    assignToTask(ns, memberInfo, territoryWarfare)
+                let task = territoryWarfare
+                let isInTopHalf = memberIndex <= Math.floor(sortedMemberInfos.length / 2)
+                if (sortedMemberInfos.length < getMaxGangSize() && isInTopHalf) {
+                    task = crimeForRep
+                } else if (getLowestAscensionStat(memberInfo, isHackGang) < 2000) {
+                    task = trainingTask
                 }
+
+                assignToTask(ns, memberInfo, task)
             }
         } else {
             // We're winning easily. Work assignment is now as follows:
