@@ -1,7 +1,7 @@
 import { pp } from './common.js'
 import { getMaxGangSize, getTrainingTaskName } from './gang.common'
 
-const DELAY_AFTER_ASSIGNMENT = 100
+const DELAY_AFTER_ASSIGNMENT = 200
 const COMBAT_WIN_THRESHOLD = .75
 const COMBAT_EASY_THRESHOLD = .9
 
@@ -292,8 +292,8 @@ export async function main(ns) {
         } else {
             // We're winning easily. Work assignment is now as follows:
             // 1. Territory
-            // 2. Rep
-            // 3-5. Money
+            // 2-3. Rep
+            // 3-4. Money
             // ?-? Negative rep fixing, if any needed
             // ?-12 Train
             let memberIndex = 0
@@ -302,7 +302,9 @@ export async function main(ns) {
             let crimeForRep = getCrimeForRep(sortedMemberInfos[memberIndex++], isHackGang)
             assignToTask(ns, sortedMemberInfos[memberIndex++], crimeForRep)
 
-            assignToTask(ns, sortedMemberInfos[memberIndex++], moneyCrime)
+            crimeForRep = getCrimeForRep(sortedMemberInfos[memberIndex++], isHackGang)
+            assignToTask(ns, sortedMemberInfos[memberIndex++], crimeForRep)
+
             assignToTask(ns, sortedMemberInfos[memberIndex++], moneyCrime)
             assignToTask(ns, sortedMemberInfos[memberIndex++], moneyCrime)
 
