@@ -261,13 +261,17 @@ export async function main(ns) {
 
         if (lowestChanceToWin < COMBAT_EASY_THRESHOLD) {
             // We need lots of people in territory warfare.
+            // Top person does Territory Warfare, to start our numbers early.
             // Top person does reputation gain, to ensure we don't lose all our rep.
             // Everyone under 2k stats trains
-            // Everyone above that does Territory Warface
-            let crimeForRep = getCrimeForRep(sortedMemberInfos[0], isHackGang)
-            assignToTask(ns, sortedMemberInfos[0], crimeForRep)
+            // Everyone above that does Territory Warfare
+            let memberIndex = 0
+            assignToTask(ns, sortedMemberInfos[memberIndex++], territoryWarfare)
 
-            for (let i = 1; i < sortedMemberInfos.length; i++) {
+            let crimeForRep = getCrimeForRep(memberIndex, isHackGang)
+            assignToTask(ns, memberIndex++, crimeForRep)
+
+            for (let i = memberIndex; i < sortedMemberInfos.length; i++) {
                 const memberInfo = sortedMemberInfos[i]
 
                 if (getLowestAscensionStat(memberInfo, isHackGang) < 2000) {
