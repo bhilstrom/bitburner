@@ -71,14 +71,12 @@ function filterAugs(augs, statsToFilter) {
 function getAugToPurchase(ns, desiredStats) {
     let augs = getAugs(ns)
     let desiredAugs = filterAugs(augs, desiredStats)
-    // pp(ns, `Desired augs: ${JSON.stringify(desiredAugs, null, 2)}`, true)
-
     let augsByCost = getMostExpensiveAugs(desiredAugs)
-    pp(ns, `augsByCost: ${JSON.stringify(augsByCost, null, 2)}`, true)
 
-    // const availableMoney = ns.getPlayer().money
-    // let augToPurchase = augsByCost.find(aug => aug.price < availableMoney)
+    const availableMoney = ns.getPlayer().money
+    let augToPurchase = augsByCost.find(aug => aug.price < availableMoney)
 
+    pp(ns, `Aug to purchase: ${augToPurchase}`, true)
     // return augToPurchase
     return undefined
 }
