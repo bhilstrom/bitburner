@@ -22,6 +22,11 @@ function getAugs(ns) {
     ns.getPlayer().factions.forEach(faction => {
         ns.singularity.getAugmentationsFromFaction(faction).forEach(aug => {
 
+            // Don't include augs we already have
+            if (currentAugs.includes(aug)) {
+                return
+            }
+
             const anyPrereqsMissing = ns.singularity.getAugmentationPrereq(aug).some(prereq => {
                 !currentAugs.includes(prereq)
             })
