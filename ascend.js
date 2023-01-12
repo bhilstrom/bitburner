@@ -70,6 +70,8 @@ function getAugToPurchase(ns, desiredStats) {
     let hackingAugs = filterAugs(augs, desiredStats)
     let augsByCost = getMostExpensiveAugs(hackingAugs)
 
+    pp(ns, `augsByCost: ${JSON.stringify(augsByCost, null, 2)}`, true)
+
     const availableMoney = ns.getPlayer().money
     let augToPurchase = augsByCost.find(aug => aug.price < availableMoney)
 
@@ -85,6 +87,7 @@ async function purchaseStatAugs(ns, statsToPurchase) {
         pp(ns, `Purchasing ${name} from ${faction}`, true)
         ns.singularity.purchaseAugmentation(faction, name)
         await ns.sleep(100)
+        augToPurchase = getAugToPurchase(ns, statsToPurchase)
     }
 }
 
