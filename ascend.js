@@ -79,11 +79,11 @@ function getAugToPurchase(ns, desiredStats) {
     const availableMoney = ns.getPlayer().money
     // pp(ns, `Available money: ${availableMoney}`, true)
 
-    for(let i = 0; i < augsByCost.length; i++) {
+    for (let i = 0; i < augsByCost.length; i++) {
         const aug = augsByCost[i]
         // pp(ns, `${aug.name}: ${aug.price}`, true)
     }
-    
+
     let augToPurchase = augsByCost[0]
 
     // pp(ns, `Aug to purchase: ${augToPurchase}`, true)
@@ -105,13 +105,36 @@ async function purchaseStatAugs(ns, statsToPurchase) {
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
-
     /*
     - Purchase any +hack augs
     - Purchase any +faction rep augs
     - Purchase as many NeuroFlux as we can
         - Donate to faction to increase rep if necessary
     */
-   await purchaseStatAugs(ns, HACKING_STATS)
-   await purchaseStatAugs(ns, FACTION_STATS)
+    await purchaseStatAugs(ns, HACKING_STATS)
+    await purchaseStatAugs(ns, FACTION_STATS)
+
+    let gangFaction = undefined
+    if (ns.gang.inGang()) {
+        gangFaction = ns.gang.getGangInformation().faction
+    }
+
+    let maxRep = Number.MIN_SAFE_INTEGER
+    let maxRepFaction = undefined
+    ns.getPlayer().factions.forEach(faction => {
+
+        // Can't purchase NeuroFlux Governor from the gang faction
+        if (faction === gangFaction) {
+            return
+        }
+
+        const factionRep = ns.singularity.getFactionRep(faction)
+        if (factionRep > maxRep) {
+            maxRep = factionRep
+            maxRepFaction = faction
+        }
+    })
+
+    // Purchase all available NeuroFlux Governor
+    while (ns.singularity.purchaseAugmentation(maxRepFaction, 'NeuroFlux Governor')) {}
 }
