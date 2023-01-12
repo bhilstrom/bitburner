@@ -74,22 +74,20 @@ function getAugToPurchase(ns, desiredStats) {
     let desiredAugs = filterAugs(augs, desiredStats)
     let augsByCost = getMostExpensiveAugs(desiredAugs)
 
-    pp(ns, `Aug names by cost: ${augsByCost}`, true)
+    // pp(ns, `Aug names by cost: ${augsByCost}`, true)
 
     const availableMoney = ns.getPlayer().money
-    pp(ns, `Available money: ${availableMoney}`, true)
+    // pp(ns, `Available money: ${availableMoney}`, true)
 
     for(let i = 0; i < augsByCost.length; i++) {
         const aug = augsByCost[i]
-        pp(ns, `${aug.name}: ${aug.price}`, true)
+        // pp(ns, `${aug.name}: ${aug.price}`, true)
     }
-
-    // let augToPurchase = augsByCost.find(aug => aug.price < availableMoney)
+    
     let augToPurchase = augsByCost[0]
 
-    pp(ns, `Aug to purchase: ${augToPurchase}`, true)
-    // return augToPurchase
-    return undefined
+    // pp(ns, `Aug to purchase: ${augToPurchase}`, true)
+    return augToPurchase
 }
 
 /** @param {import(".").NS } ns */
