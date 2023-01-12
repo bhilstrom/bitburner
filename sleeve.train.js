@@ -25,7 +25,7 @@ import { hasFormulasAccess, pp } from './common.js'
 
 /** @param {import(".").NS } ns */
 function trainHacking(ns, sleeveNumber) {
-    ns.sleeve.setToUniversityCourse(sleeveNumber, 'Rothman University', 'Study Computer Science')
+    ns.sleeve.setToUniversityCourse(sleeveNumber, ns.enums.LocationName.Sector12RothmanUniversity, 'Study Computer Science')
 }
 
 /** @param {import(".").NS } ns */
