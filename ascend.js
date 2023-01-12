@@ -53,8 +53,7 @@ function getAugs(ns) {
     })
 
     const augsArray = Object.values(augs)
-
-    return augsArray.filter(([k, v]) => v.factions.length > 0)
+    return augsArray.filter(aug => aug.factions.length > 0)
 }
 
 function getMostExpensiveAugs(augs) {
