@@ -56,9 +56,9 @@ function getAugs(ns) {
 }
 
 function getMostExpensiveAugs(augs) {
-    return Object.keys(augs).sort((a, b) => {
+    return Object.fromEntries(Object.entries(augs).sort((a, b) => {
         return b.price - a.price
-    })
+    }))
 }
 
 function filterAugs(augs, statsToFilter) {
@@ -71,11 +71,10 @@ function filterAugs(augs, statsToFilter) {
 function getAugToPurchase(ns, desiredStats) {
     let augs = getAugs(ns)
     let desiredAugs = filterAugs(augs, desiredStats)
-    pp(ns, `Desired augs: ${JSON.stringify(desiredAugs, null, 2)}`, true)
+    // pp(ns, `Desired augs: ${JSON.stringify(desiredAugs, null, 2)}`, true)
 
-    // let augsByCost = getMostExpensiveAugs(desiredAugs)
-
-    // pp(ns, `augsByCost: ${JSON.stringify(augsByCost, null, 2)}`, true)
+    let augsByCost = getMostExpensiveAugs(desiredAugs)
+    pp(ns, `augsByCost: ${JSON.stringify(augsByCost, null, 2)}`, true)
 
     // const availableMoney = ns.getPlayer().money
     // let augToPurchase = augsByCost.find(aug => aug.price < availableMoney)
