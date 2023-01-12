@@ -1,4 +1,3 @@
-import { CrimeType } from '.'
 import { pp } from './common.js'
 
 const CSEC = 'CyberSec'
@@ -58,13 +57,13 @@ async function waitUntilHacking10(ns) {
 function commitCrime(ns) {
 
     const upgradedCrimes = [
-        CrimeType.homicide,
-        CrimeType.homicide,
-        CrimeType.larceny,
-        CrimeType.robStore
+        ns.enums.CrimeType.homicide,
+        ns.enums.CrimeType.homicide,
+        ns.enums.CrimeType.larceny,
+        ns.enums.CrimeType.robStore
     ]
 
-    let targetCrime = CrimeType.shoplift
+    let targetCrime = ns.enums.CrimeType.shoplift
     for (let i = 0; i < upgradedCrimes.length; i++) {
         let crime = upgradedCrimes[i]
         if (ns.singularity.getCrimeChance(crime) > 0.9) {
