@@ -166,12 +166,9 @@ export async function main(ns) {
     for (let i = 0; i < factionHosts.length; i++) {
         const hostname = factionHosts[i]
         await backdoorHost(ns, hostname)
-
-        // Once we've hacked The Black Hand, we should have enough money to buy the rest of the darkweb programs
-        if (i == 2) {
-            await buyAllDarkwebPrograms(ns)
-        }
     }
+
+    await buyAllDarkwebPrograms(ns)
 
     // Once we can backdoor run4theh111z, we definitely have enough machine to share.
     if (!ns.scriptRunning('share.js', 'home')) {
