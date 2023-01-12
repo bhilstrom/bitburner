@@ -1,21 +1,7 @@
+import { CrimeType } from '.'
 import { pp } from './common.js'
 
 const CSEC = 'CyberSec'
-
-const CRIME_NAMES_MAP = {
-    'Shoplift': 'SHOPLIFT',
-    'Rob Store': 'ROBSTORE',
-    'Mug': 'MUG',
-    'Larceny': 'LARCENY',
-    'Deal Drugs': 'DRUGS',
-    'Bond Forgery': 'BONDFORGERY',
-    'Traffick Arms': 'TRAFFICKARMS',
-    'Homicide': 'HOMICIDE',
-    'Grand Theft Auto': 'GRANDTHEFTAUTO',
-    'Kidnap': 'KIDNAP',
-    'Assassination': 'ASSASSINATION',
-    'Heist': 'HEIST',
-}
 
 const FACTIONS_WITH_NO_CONFLICTS = [
     'CyberSec',
@@ -70,13 +56,15 @@ async function waitUntilHacking10(ns) {
 
 /** @param {import(".").NS } ns */
 function commitCrime(ns) {
+
     const upgradedCrimes = [
-        'Homicide',
-        'Larceny',
-        'Rob store',
+        CrimeType.homicide,
+        CrimeType.homicide,
+        CrimeType.larceny,
+        CrimeType.robStore
     ]
 
-    let targetCrime = 'Shoplift'
+    let targetCrime = CrimeType.shoplift
     for (let i = 0; i < upgradedCrimes.length; i++) {
         let crime = upgradedCrimes[i]
         if (ns.singularity.getCrimeChance(crime) > 0.9) {
@@ -87,7 +75,8 @@ function commitCrime(ns) {
 
     // If the player is currently doing that work, don't restart it
     const currentWork = ns.singularity.getCurrentWork()
-    if (currentWork !== null && currentWork.type == 'CRIME' && CRIME_NAMES_MAP[targetCrime] === currentWork.crimeType) {
+
+    if (currentWork !== null && currentWork.type == 'CRIME' && targetCrime === currentWork.crimeType) {
         return
     }
 
