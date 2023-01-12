@@ -63,8 +63,8 @@ function getMostExpensiveAugs(augs) {
 }
 
 function filterAugs(augs, statsToFilter) {
-    return augs.filter(([k, v]) => {
-        return statsToFilter.some(stat => v.stats[stat] > 1)
+    return augs.filter(aug => {
+        return statsToFilter.some(stat => aug.stats[stat] > 1)
     })
 }
 
