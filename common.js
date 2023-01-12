@@ -3,7 +3,7 @@
 export function settings() {
     return {
         hackPercent: .1,
-        homeRamReserved: 30,
+        homeRamReserved: 35,
         minSecurityLevelOffset: 1,
         maxMoneyMultiplier: 1,
         minSecurityWeight: 100,
