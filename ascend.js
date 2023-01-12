@@ -1,4 +1,4 @@
-import { localeHHMMSS, pp } from './common.js'
+import { pp } from './common.js'
 
 const HACKING_STATS = [
     'hacking',
@@ -47,9 +47,7 @@ function getAugs(ns) {
         })
     })
 
-    return Object.fromEntries(Object.entries(augs).filter(([k, v]) => {
-        return v.factions.length > 0
-    }))
+    return Object.fromEntries(Object.entries(augs).filter(([k, v]) => v.factions.length > 0))
 }
 
 function getMostExpensiveAugs(augs) {
@@ -67,15 +65,18 @@ function filterAugs(augs, statsToFilter) {
 /** @param {import(".").NS } ns */
 function getAugToPurchase(ns, desiredStats) {
     let augs = getAugs(ns)
-    let hackingAugs = filterAugs(augs, desiredStats)
-    let augsByCost = getMostExpensiveAugs(hackingAugs)
+    let desiredAugs = filterAugs(augs, desiredStats)
+    pp(ns, `Desired augs: ${JSON.stringify(desiredAugs, null, 2)}`, true)
 
-    pp(ns, `augsByCost: ${JSON.stringify(augsByCost, null, 2)}`, true)
+    // let augsByCost = getMostExpensiveAugs(desiredAugs)
 
-    const availableMoney = ns.getPlayer().money
-    let augToPurchase = augsByCost.find(aug => aug.price < availableMoney)
+    // pp(ns, `augsByCost: ${JSON.stringify(augsByCost, null, 2)}`, true)
 
-    return augToPurchase
+    // const availableMoney = ns.getPlayer().money
+    // let augToPurchase = augsByCost.find(aug => aug.price < availableMoney)
+
+    // return augToPurchase
+    return undefined
 }
 
 /** @param {import(".").NS } ns */
