@@ -73,6 +73,8 @@ function getAugToPurchase(ns, desiredStats) {
     let desiredAugs = filterAugs(augs, desiredStats)
     let augNamesByCost = getMostExpensiveAugs(desiredAugs)
 
+    pp(ns, `Aug names by cost: ${augNamesByCost}`, true)
+
     const availableMoney = ns.getPlayer().money
     pp(ns, `Available money: ${availableMoney}`, true)
 
