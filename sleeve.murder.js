@@ -3,6 +3,7 @@ import { pp } from './common.js'
 const STAT_THRESHOLD = 140
 const SHOCK_THRESHOLD = 60
 
+/** @param {import(".").NS } ns */
 function anySleeveBelowThreshold(ns) {
 
     const homicideStats = [
@@ -14,8 +15,8 @@ function anySleeveBelowThreshold(ns) {
 
     let anyBelowThreshold = false
     forEachSleeve(ns, (sleeveNum) => {
-        const sleeveStats = ns.sleeve.getSleeveStats(sleeveNum)
-        if (homicideStats.some(stat => sleeveStats[stat] < STAT_THRESHOLD)) {
+        const sleeveSkills = ns.sleeve.getSleeve(sleeveNum).skills
+        if (homicideStats.some(stat => sleeveSkills[stat] < STAT_THRESHOLD)) {
             anyBelowThreshold = true
         }
     })
@@ -37,9 +38,9 @@ async function shockRecover(ns) {
     while (sleeveInShock) {
         sleeveInShock = false
         forEachSleeve(ns, (sleeveNum) => {
-            const sleeveStats = ns.sleeve.getSleeveStats(sleeveNum)
-            pp(ns, `Sleeve ${sleeveNum} shock: ${sleeveStats.shock}`)
-            if (sleeveStats.shock > SHOCK_THRESHOLD) {
+            const sleeve = ns.sleeve.getSleeve(sleeveNum)
+            pp(ns, `Sleeve ${sleeveNum} shock: ${sleeve.shock}`)
+            if (sleeve.shock > SHOCK_THRESHOLD) {
                 pp(ns, `Sleeve ${sleeveNum} is still over ${SHOCK_THRESHOLD} shock.`)
                 sleeveInShock = true
                 ns.sleeve.setToShockRecovery(sleeveNum)
