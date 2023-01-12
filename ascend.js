@@ -56,9 +56,9 @@ function getAugs(ns) {
 }
 
 function getMostExpensiveAugs(augs) {
-    return Object.fromEntries(Object.entries(augs).sort((a, b) => {
+    return Object.entries(augs).sort((a, b) => {
         return b.price - a.price
-    }))
+    })
 }
 
 function filterAugs(augs, statsToFilter) {
