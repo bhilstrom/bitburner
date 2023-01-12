@@ -47,7 +47,7 @@ function getAugs(ns) {
         })
     })
 
-    return Object.fromEntries(object.entries(augs).filter(([k, v]) => {
+    return Object.fromEntries(Object.entries(augs).filter(([k, v]) => {
         return v.factions.length > 0
     }))
 }
