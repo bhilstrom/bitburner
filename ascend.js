@@ -52,39 +52,41 @@ function getAugs(ns) {
         })
     })
 
-    return Object.fromEntries(Object.entries(augs).filter(([k, v]) => v.factions.length > 0))
+    const augsArray = Object.values(augs)
+
+    return augsArray.filter(([k, v]) => v.factions.length > 0)
 }
 
 function getMostExpensiveAugs(augs) {
-    return Object.entries(augs).sort((a, b) => {
+    return augs.sort((a, b) => {
         return b.price - a.price
     })
 }
 
 function filterAugs(augs, statsToFilter) {
-    return Object.fromEntries(Object.entries(augs).filter(([k, v]) => {
+    return augs.filter(([k, v]) => {
         return statsToFilter.some(stat => v.stats[stat] > 1)
-    }))
+    })
 }
 
 /** @param {import(".").NS } ns */
 function getAugToPurchase(ns, desiredStats) {
     let augs = getAugs(ns)
     let desiredAugs = filterAugs(augs, desiredStats)
-    let augNamesByCost = getMostExpensiveAugs(desiredAugs)
+    let augsByCost = getMostExpensiveAugs(desiredAugs)
 
-    pp(ns, `Aug names by cost: ${augNamesByCost}`, true)
+    pp(ns, `Aug names by cost: ${augsByCost}`, true)
 
     const availableMoney = ns.getPlayer().money
     pp(ns, `Available money: ${availableMoney}`, true)
 
-    for(let i = 0; i < augNamesByCost.length; i++) {
-        const aug = desiredAugs[augNamesByCost[i]]
+    for(let i = 0; i < augsByCost.length; i++) {
+        const aug = augsByCost[i]
         pp(ns, `${aug.name}: ${aug.price}`, true)
     }
 
     // let augToPurchase = augsByCost.find(aug => aug.price < availableMoney)
-    let augToPurchase = desiredAugs[augNamesByCost[0]]
+    let augToPurchase = augsByCost[0]
 
     pp(ns, `Aug to purchase: ${augToPurchase}`, true)
     // return augToPurchase
