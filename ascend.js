@@ -62,31 +62,22 @@ function getMostExpensiveAugs(augs) {
     })
 }
 
-function filterAugs(augs, statsToFilter) {
+/** @param {import(".").NS } ns */
+function filterAugs(ns, augs, statsToFilter) {
+    const availableMoney = ns.getPlayer().money
     return augs.filter(aug => {
         return statsToFilter.some(stat => aug.stats[stat] > 1)
+    }).filter(aug => {
+        return aug.price < availableMoney
     })
 }
 
 /** @param {import(".").NS } ns */
 function getAugToPurchase(ns, desiredStats) {
     let augs = getAugs(ns)
-    let desiredAugs = filterAugs(augs, desiredStats)
+    let desiredAugs = filterAugs(ns, augs, desiredStats)
     let augsByCost = getMostExpensiveAugs(desiredAugs)
-
-    // pp(ns, `Aug names by cost: ${augsByCost}`, true)
-
-    const availableMoney = ns.getPlayer().money
-    // pp(ns, `Available money: ${availableMoney}`, true)
-
-    for (let i = 0; i < augsByCost.length; i++) {
-        const aug = augsByCost[i]
-        // pp(ns, `${aug.name}: ${aug.price}`, true)
-    }
-
     let augToPurchase = augsByCost[0]
-
-    // pp(ns, `Aug to purchase: ${augToPurchase}`, true)
     return augToPurchase
 }
 
@@ -97,7 +88,9 @@ async function purchaseStatAugs(ns, statsToPurchase) {
         const faction = augToPurchase.factions[0]
         const name = augToPurchase.name
         pp(ns, `Purchasing ${name} from ${faction}`, true)
-        ns.singularity.purchaseAugmentation(faction, name)
+        if (!ns.singularity.purchaseAugmentation(faction, name)) {
+            throw new Error(`Failed to purchase ${name}`)
+        }
         await ns.sleep(100)
         augToPurchase = getAugToPurchase(ns, statsToPurchase)
     }
