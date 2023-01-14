@@ -72,3 +72,7 @@ export async function main(ns) {
     pp(ns, `Connection string copied to clipboard: ${connectionString}`, true)
     navigator.clipboard.writeText(connectionString)
 }
+
+export function autocomplete(data, args) {
+    return data.servers;
+}
