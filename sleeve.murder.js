@@ -32,7 +32,9 @@ function forEachSleeve(ns, func) {
 }
 
 /** @param {import(".").NS } ns */
-async function shockRecover(ns) {
+async function shockRecover(ns, threshold) {
+
+    threshold = threshold || SHOCK_THRESHOLD
 
     let sleeveInShock = true // Set to true so we enter the while loop
     while (sleeveInShock) {
@@ -40,7 +42,7 @@ async function shockRecover(ns) {
         forEachSleeve(ns, (sleeveNum) => {
             const sleeve = ns.sleeve.getSleeve(sleeveNum)
             pp(ns, `Sleeve ${sleeveNum} shock: ${sleeve.shock}`)
-            if (sleeve.shock > SHOCK_THRESHOLD) {
+            if (sleeve.shock > threshold) {
                 pp(ns, `Sleeve ${sleeveNum} is still over ${SHOCK_THRESHOLD} shock.`)
                 sleeveInShock = true
                 ns.sleeve.setToShockRecovery(sleeveNum)
@@ -85,21 +87,28 @@ export async function main(ns) {
 
     await mugUntilThreshold(ns)
 
-    pp(ns, 'Starting homicides', true)
-    forEachSleeve(ns, (sleeveNum) => {
-        ns.sleeve.setToCommitCrime(sleeveNum, 'Homicide')
-    })
+    if (!ns.gang.inGang()) {
+        pp(ns, 'Starting homicides', true)
+        forEachSleeve(ns, (sleeveNum) => {
+            ns.sleeve.setToCommitCrime(sleeveNum, 'Homicide')
+        })
 
-    pp(ns, 'Waiting for negative-enough karma', true)
-    while (ns.heart.break() > -54000) {
-        pp(ns, `Current karma: ${ns.heart.break()}`)
-        await ns.sleep(30000)
+        pp(ns, 'Waiting for negative-enough karma', true)
+        while (ns.heart.break() > -54000) {
+            pp(ns, `Current karma: ${ns.heart.break()}`)
+            await ns.sleep(30000)
+        }
+
+        pp(ns, 'Finished waiting for karma, setting all sleeves to shock recovery')
+        forEachSleeve(ns, (sleeveNum) => {
+            ns.sleeve.setToShockRecovery(sleeveNum)
+        })
+
+        ns.spawn('gang.start.js', 1)
+    } else {
+
+        // We're already in a gang, so we should just do shock recovery and training.
+        shockRecover(ns, 0)
+        ns.spawn('sleeve.train.js', 1)
     }
-
-    pp(ns, 'Finished waiting for karma, setting all sleeves to shock recovery')
-    forEachSleeve(ns, (sleeveNum) => {
-        ns.sleeve.setToShockRecovery(sleeveNum)
-    })
-
-    ns.spawn('gang.start.js', 1)
 }
