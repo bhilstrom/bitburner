@@ -28,7 +28,7 @@ function getAugs(ns) {
             }
 
             const anyPrereqsMissing = ns.singularity.getAugmentationPrereq(aug).some(prereq => {
-                !currentAugs.includes(prereq)
+                return !currentAugs.includes(prereq)
             })
 
             // Don't include stats on augs we can't get yet
