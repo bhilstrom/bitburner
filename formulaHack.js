@@ -354,7 +354,7 @@ async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionSta
             const desiredMoney = target.moneyMax * settings().maxMoneyMultiplier
             growThreads = getGrowThreadsRequired(ns, target, target.moneyAvailable, desiredMoney, home.cpuCores)
             prepareTargetBatch.grow = growThreads
-    
+
             // This method optionally takes 'cores', but ideally weaken is distributed to machines other than 'home'
             weakenThreadsForGrow = Math.ceil(ns.growthAnalyzeSecurity(growThreads, target.hostname, 1) / 0.05)
             prepareTargetBatch.weaken2 = weakenThreadsForGrow
@@ -411,31 +411,31 @@ async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionSta
         const hackPercent = settings().hackPercent
         const effectiveMaxMoney = target.moneyMax * settings().maxMoneyMultiplier
         const targetMoneyToRemove = effectiveMaxMoney * hackPercent
-    
+
         // Because we want to err on the side of fewer threads, we use floor
         // However, that can make us hack for 0 threads if our hacking is too strong.
         let hackThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(target.hostname, targetMoneyToRemove)))
-    
+
         // Err on having stolen more money so we need to grow more
         const moneyStolen = Math.ceil(ns.hackAnalyze(target.hostname) * effectiveMaxMoney) * hackThreads
         const moneyAvailableAfterHack = effectiveMaxMoney - moneyStolen
         const securityIncrease = ns.hackAnalyzeSecurity(hackThreads, target.hostname)
-    
+
         // Weaken ALWAYS lowers the security level of the target by 0.05
         // https://github.com/danielyxie/bitburner/blob/master/markdown/bitburner.ns.weaken.md
         let weakenThreadsForHack = Math.ceil(securityIncrease / .05)
-    
+
         // Grow threads run on the home server due to exponential growth
         const moneyTargetAfterGrow = target.moneyMax * settings().maxMoneyMultiplier
         growThreads = getGrowThreadsRequired(ns, target, moneyAvailableAfterHack, moneyTargetAfterGrow, home.cpuCores)
-    
+
         // Everything's an approximation, so do one more grow than necessary to make sure we stay on top
         if (hackThreads > 0) {
             growThreads += 1
         }
-    
+
         pp(ns, `Growing after removing ${targetMoneyToRemove} results in ${growThreads} grow threads`)
-    
+
         // Source for growthAnalyzeSecurity is currently 'return 2 * CONSTANTS.ServerFortifyAmount * threads;'
         // https://github.com/danielyxie/bitburner/blob/master/src/NetscriptFunctions.ts,
         // except it does a bunch of error correction to only allow the max number of threads etc etc etc
@@ -443,19 +443,19 @@ async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionSta
         // From https://github.com/danielyxie/bitburner/blob/master/src/Constants.ts, it's 0.002
         const securityIncreaseFromGrow = 2 * 0.002 * growThreads
         // const gAnalyzeResult = ns.growthAnalyzeSecurity(growThreads, target.hostname, 1)
-    
+
         weakenThreadsForGrow = Math.ceil(securityIncreaseFromGrow / 0.05) + 1 // Adding one to cover 
         pp(ns, `Weaken threads for ${growThreads} grow threads and ${securityIncreaseFromGrow} secutity increase: ${weakenThreadsForGrow}`)
-    
+
         let hackBatch = {
             hack: hackThreads,
             weaken1: weakenThreadsForHack,
             grow: growThreads,
             weaken2: weakenThreadsForGrow
         }
-    
+
         pp(ns, `Hack batch: ${JSON.stringify(hackBatch, null, 2)}`)
-    
+
         // Loop through the hack batch until we're full.
         let awakenFromHackAt = awakenFromPrepareBatchAt
         awakenFromHackAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, hackBatch, false, awakenFromHackAt)
@@ -480,6 +480,14 @@ function updateServerData(ns, desired) {
     return [serverMap, rootedServers]
 }
 
+function getDesiredOptions() {
+    return [
+        "xp",
+        "money",
+        "joesguns"
+    ]
+}
+
 /** @param {import(".").NS } ns */
 export async function main(ns) {
     pp(ns, "Starting formulaHack.js", true)
@@ -495,11 +503,7 @@ export async function main(ns) {
         "scp",
     ].forEach(logName => ns.disableLog(logName))
 
-    const desiredOptions = [
-        "xp",
-        "money",
-        "joesguns"
-    ]
+    const desiredOptions = getDesiredOptions()
 
     let desired = "money"
     if (ns.args.length > 0 && desiredOptions.includes(ns.args[0])) {
@@ -541,7 +545,7 @@ export async function main(ns) {
         let targets = ['joesguns']
         if (desired === 'money' && ns.getPlayer().skills.hacking > ns.getServer('avmnite-02h').requiredHackingSkill) {
             const targetServers = findWeightedTargetServers(ns, rootedServers, serverMap.servers, serverExtraData)
-            
+
             // Set the targets to the top N servers
             targets = []
             for (let i = 0; i < numTargets; i++) {
@@ -568,4 +572,8 @@ export async function main(ns) {
         // const sleepTime = 100
         // await ns.sleep(sleepTime)
     }
+}
+
+export function autocomplete(data, args) {
+    return getDesiredOptions();
 }
