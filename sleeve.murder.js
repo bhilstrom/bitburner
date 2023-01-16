@@ -1,4 +1,4 @@
-import { pp } from './common.js'
+import { pp, forEachSleeve } from './common.js'
 
 const STAT_THRESHOLD = 140
 const SHOCK_THRESHOLD = 60
@@ -22,13 +22,6 @@ function anySleeveBelowThreshold(ns) {
     })
 
     return anyBelowThreshold
-}
-
-function forEachSleeve(ns, func) {
-    const numSleeves = ns.sleeve.getNumSleeves()
-    for (let sleeveNum = 0; sleeveNum < numSleeves; sleeveNum++) {
-        func(sleeveNum)
-    }
 }
 
 /** @param {import(".").NS } ns */

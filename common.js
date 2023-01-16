@@ -142,6 +142,7 @@ export function getPlayerDetails(ns) {
   }
 }
 
+/** @param {import(".").NS } ns */
 export function hasFormulasAccess(ns) {
     return ns.fileExists('Formulas.exe', 'home')
 }
@@ -181,4 +182,12 @@ export function getFactions() {
         'Daedalus',
         'Illuminati',
     ]
+}
+
+/** @param {import(".").NS } ns */
+export function forEachSleeve(ns, func) {
+    const numSleeves = ns.sleeve.getNumSleeves()
+    for (let sleeveNum = 0; sleeveNum < numSleeves; sleeveNum++) {
+        func(sleeveNum)
+    }
 }
