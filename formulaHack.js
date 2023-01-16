@@ -417,7 +417,7 @@ async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionSta
         // Divide the desired hack percent by 2 and try again.
         while (hackBatch.grow > 0 || hackBatch.hack > 0 || hackBatch.weaken1 > 0 || hackBatch.weaken2 > 0) {
             pp(ns, `Attempting a hack batch with hackPercent ${hackPercent}`)
-            const hackResults = hack(ns, target, hackPercent, settings().maxMoneyMultiplier, rootedServers, availableRam, home)
+            const hackResults = hack(ns, target, hackPercent, settings().maxMoneyMultiplier, rootedServers, availableRam, home, awakenFromPrepareBatchAt)
             growThreads = hackResults[0]
             weakenThreadsForGrow = hackResults[1]
             hackBatch = hackResults[2]
@@ -433,7 +433,7 @@ async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionSta
 }
 
 /** @param {import(".").NS } ns */
-function hack(ns, target, hackPercent, maxMoneyMultiplier, rootedServers, availableRam, home) {
+function hack(ns, target, hackPercent, maxMoneyMultiplier, rootedServers, availableRam, home, awakenFromPrepareBatchAt) {
 
     // Hack server
     const effectiveMaxMoney = target.moneyMax * maxMoneyMultiplier
@@ -488,7 +488,7 @@ function hack(ns, target, hackPercent, maxMoneyMultiplier, rootedServers, availa
     awakenFromHackAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, hackBatch, false, awakenFromHackAt)
     pp(ns, `Hack batch after processing: ${JSON.stringify(hackBatch, null, 2)}`)
 
-    return [growThreads, weakenThreadsForGrow, hackBatch]
+    return [growThreads, weakenThreadsForGrow, hackBatch, awakenFromHackAt]
 }
 
 /** @param {import(".").NS } ns */
