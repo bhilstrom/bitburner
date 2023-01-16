@@ -132,9 +132,15 @@ function purchaseNeuroFluxGovernors(ns) {
 /** @param {import(".").NS } ns */
 async function purchaseSleeveAugs(ns) {
     forEachSleeve(ns, (sleeveNum) => {
+        const shock = ns.sleeve.getSleeve(sleeveNum).shock
+        if (shock > 0) {
+            pp(ns, `Sleeve ${sleeveNum} has ${shock} shock, aug purchasing not available.`)
+            return
+        }
+
         let augCount = 0
-        ns.sleeve.getSleevePurchasableAugs(sleeveNum).forEach(augName => {
-            if (ns.sleeve.purchaseSleeveAug(sleeveNum, augName)) {
+        ns.sleeve.getSleevePurchasableAugs(sleeveNum).forEach(augPair => {
+            if (ns.sleeve.purchaseSleeveAug(sleeveNum, augPair.name)) {
                 augCount += 1
             }
         })
