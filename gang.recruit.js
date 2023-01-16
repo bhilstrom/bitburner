@@ -1,6 +1,18 @@
 import { pp } from './common.js'
 import { getMaxGangSize, getTrainingTaskName } from './gang.common'
 
+function getMemberName(ns, memberNames) {
+    const PREFIX = "Recruit-"
+
+    let highestMemberNumber = 0
+    memberNames.forEach(memberName => {
+        const memberNumber = memberName.split('-')[1]
+        highestMemberNumber = Math.max(highestMemberNumber, memberNumber)
+    })
+
+    return `${PREFIX}${highestMemberNumber + 1}`
+}
+
 /** @param {import(".").NS } ns */
 export async function main(ns) {
 
@@ -14,8 +26,10 @@ export async function main(ns) {
     let members = ns.gang.getMemberNames()
     while (members.length < getMaxGangSize()) {
         if (ns.gang.canRecruitMember()) {
-            const memberName = `Recruit-${members.length + 1}`
-            ns.gang.recruitMember(memberName)
+            const memberName = getMemberName(ns, members)
+            if (!ns.gang.recruitMember(memberName)) {
+                throw new Error(`Failed to recruit member ${memberName}`)
+            }
             pp(ns, `Recruited new member ${memberName}`, true)
             ns.gang.setMemberTask(memberName, newRecruitTask)
         }
