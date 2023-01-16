@@ -186,7 +186,7 @@ export async function main(ns) {
 
     await purchaseStatAugs(ns, FACTION_STATS)
     
-    purchaseNeuroFluxGovernors()
+    purchaseNeuroFluxGovernors(ns)
 
     // Number of augs we're purchasing is 'owned(true)' - 'owned(false)'
     const numberOfAugsPending = ns.singularity.getOwnedAugmentations(true).length - ns.singularity.getOwnedAugmentations(false).length
