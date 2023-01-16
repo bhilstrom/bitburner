@@ -406,61 +406,89 @@ async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionSta
 
         distributeBatch(ns, target, rootedServers, actionStats, availableRam, xpBatch, true, awakenFromPrepareBatchAt)
     } else {
-
-        // Hack server
-        const hackPercent = settings().hackPercent
-        const effectiveMaxMoney = target.moneyMax * settings().maxMoneyMultiplier
-        const targetMoneyToRemove = effectiveMaxMoney * hackPercent
-
-        // Because we want to err on the side of fewer threads, we use floor
-        // However, that can make us hack for 0 threads if our hacking is too strong.
-        let hackThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(target.hostname, targetMoneyToRemove)))
-
-        // Err on having stolen more money so we need to grow more
-        const moneyStolen = Math.ceil(ns.hackAnalyze(target.hostname) * effectiveMaxMoney) * hackThreads
-        const moneyAvailableAfterHack = effectiveMaxMoney - moneyStolen
-        const securityIncrease = ns.hackAnalyzeSecurity(hackThreads, target.hostname)
-
-        // Weaken ALWAYS lowers the security level of the target by 0.05
-        // https://github.com/danielyxie/bitburner/blob/master/markdown/bitburner.ns.weaken.md
-        let weakenThreadsForHack = Math.ceil(securityIncrease / .05)
-
-        // Grow threads run on the home server due to exponential growth
-        const moneyTargetAfterGrow = target.moneyMax * settings().maxMoneyMultiplier
-        growThreads = getGrowThreadsRequired(ns, target, moneyAvailableAfterHack, moneyTargetAfterGrow, home.cpuCores)
-
-        // Everything's an approximation, so do one more grow than necessary to make sure we stay on top
-        if (hackThreads > 0) {
-            growThreads += 1
-        }
-
-        pp(ns, `Growing after removing ${targetMoneyToRemove} results in ${growThreads} grow threads`)
-
-        // Source for growthAnalyzeSecurity is currently 'return 2 * CONSTANTS.ServerFortifyAmount * threads;'
-        // https://github.com/danielyxie/bitburner/blob/master/src/NetscriptFunctions.ts,
-        // except it does a bunch of error correction to only allow the max number of threads etc etc etc
-        // We don't care, we just want the number.
-        // From https://github.com/danielyxie/bitburner/blob/master/src/Constants.ts, it's 0.002
-        const securityIncreaseFromGrow = 2 * 0.002 * growThreads
-        // const gAnalyzeResult = ns.growthAnalyzeSecurity(growThreads, target.hostname, 1)
-
-        weakenThreadsForGrow = Math.ceil(securityIncreaseFromGrow / 0.05) + 1 // Adding one to cover 
-        pp(ns, `Weaken threads for ${growThreads} grow threads and ${securityIncreaseFromGrow} secutity increase: ${weakenThreadsForGrow}`)
-
+        // Make a fake hack batch, just to simplify the while loop logic.
         let hackBatch = {
-            hack: hackThreads,
-            weaken1: weakenThreadsForHack,
-            grow: growThreads,
-            weaken2: weakenThreadsForGrow
+            grow: 1,
         }
 
-        pp(ns, `Hack batch: ${JSON.stringify(hackBatch, null, 2)}`)
+        let hackPercent = settings().hackPercent
 
-        // Loop through the hack batch until we're full.
-        let awakenFromHackAt = awakenFromPrepareBatchAt
-        awakenFromHackAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, hackBatch, false, awakenFromHackAt)
-        pp(ns, `Hack batch after processing: ${JSON.stringify(hackBatch, null, 2)}`)
+        // If we fail the hack batch, it means we don't have enough ram available.
+        // Divide the desired hack percent by 2 and try again.
+        while (hackBatch.grow > 0 || hackBatch.hack > 0 || hackBatch.weaken1 > 0 || hackBatch.weaken2 > 0) {
+            pp(ns, `Attempting a hack batch with hackPercent ${hackPercent}`)
+            const hackResults = hack(ns, target, hackPercent, settings().maxMoneyMultiplier, rootedServers, availableRam)
+            growThreads = hackResults[0]
+            weakenThreadsForGrow = hackResults[1]
+            hackBatch = hackResults[2]
+
+            // Update this at the end of the loop so the initial hackPercent is correct
+            hackPercent = hackPercent / 2
+
+            if (hackPercent <= Number.MIN_VALUE) {
+                throw new Error(`Reached hackPercent ${hackPercent} while trying to hack ${target.hostname}`)
+            }
+        }
     }
+}
+
+/** @param {import(".").NS } ns */
+function hack(ns, target, hackPercent, maxMoneyMultiplier, rootedServers, availableRam) {
+
+    // Hack server
+    const effectiveMaxMoney = target.moneyMax * maxMoneyMultiplier
+    const targetMoneyToRemove = effectiveMaxMoney * hackPercent
+
+    // Because we want to err on the side of fewer threads, we use floor
+    // However, that can make us hack for 0 threads if our hacking is too strong.
+    let hackThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(target.hostname, targetMoneyToRemove)))
+
+    // Err on having stolen more money so we need to grow more
+    const moneyStolen = Math.ceil(ns.hackAnalyze(target.hostname) * effectiveMaxMoney) * hackThreads
+    const moneyAvailableAfterHack = effectiveMaxMoney - moneyStolen
+    const securityIncrease = ns.hackAnalyzeSecurity(hackThreads, target.hostname)
+
+    // Weaken ALWAYS lowers the security level of the target by 0.05
+    // https://github.com/danielyxie/bitburner/blob/master/markdown/bitburner.ns.weaken.md
+    let weakenThreadsForHack = Math.ceil(securityIncrease / .05)
+
+    // Grow threads run on the home server due to exponential growth
+    const moneyTargetAfterGrow = target.moneyMax * settings().maxMoneyMultiplier
+    let growThreads = getGrowThreadsRequired(ns, target, moneyAvailableAfterHack, moneyTargetAfterGrow, home.cpuCores)
+
+    // Everything's an approximation, so do one more grow than necessary to make sure we stay on top
+    if (hackThreads > 0) {
+        growThreads += 1
+    }
+
+    pp(ns, `Growing after removing ${targetMoneyToRemove} results in ${growThreads} grow threads`)
+
+    // Source for growthAnalyzeSecurity is currently 'return 2 * CONSTANTS.ServerFortifyAmount * threads;'
+    // https://github.com/danielyxie/bitburner/blob/master/src/NetscriptFunctions.ts,
+    // except it does a bunch of error correction to only allow the max number of threads etc etc etc
+    // We don't care, we just want the number.
+    // From https://github.com/danielyxie/bitburner/blob/master/src/Constants.ts, it's 0.002
+    const securityIncreaseFromGrow = 2 * 0.002 * growThreads
+    // const gAnalyzeResult = ns.growthAnalyzeSecurity(growThreads, target.hostname, 1)
+
+    const weakenThreadsForGrow = Math.ceil(securityIncreaseFromGrow / 0.05) + 1 // Adding one to cover 
+    pp(ns, `Weaken threads for ${growThreads} grow threads and ${securityIncreaseFromGrow} secutity increase: ${weakenThreadsForGrow}`)
+
+    let hackBatch = {
+        hack: hackThreads,
+        weaken1: weakenThreadsForHack,
+        grow: growThreads,
+        weaken2: weakenThreadsForGrow
+    }
+
+    pp(ns, `Hack batch: ${JSON.stringify(hackBatch, null, 2)}`)
+
+    // Loop through the hack batch until we're full.
+    let awakenFromHackAt = awakenFromPrepareBatchAt
+    awakenFromHackAt = distributeBatch(ns, target, rootedServers, actionStats, availableRam, hackBatch, false, awakenFromHackAt)
+    pp(ns, `Hack batch after processing: ${JSON.stringify(hackBatch, null, 2)}`)
+
+    return [growThreads, weakenThreadsForGrow, hackBatch]
 }
 
 /** @param {import(".").NS } ns */
