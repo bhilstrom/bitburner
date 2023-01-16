@@ -415,7 +415,7 @@ async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionSta
 
         // If we fail the hack batch, it means we don't have enough ram available.
         // Divide the desired hack percent by 2 and try again.
-        while (hackBatch.grow > 0 || hackBatch.hack > 0 || hackBatch.weaken1 > 0 || hackBatch.weaken2 > 0) {
+        while (hackPercent <= Number.MIN_VALUE && (hackBatch.grow > 0 || hackBatch.hack > 0 || hackBatch.weaken1 > 0 || hackBatch.weaken2 > 0)) {
             pp(ns, `Attempting a hack batch with hackPercent ${hackPercent}`)
             const hackResults = hack(ns, target, hackPercent, settings().maxMoneyMultiplier, rootedServers, availableRam, home, awakenFromPrepareBatchAt, actionStats)
             growThreads = hackResults[0]
@@ -424,10 +424,6 @@ async function prepareAndHackTarget(ns, rootedServers, targetHostname, actionSta
 
             // Update this at the end of the loop so the initial hackPercent is correct
             hackPercent = hackPercent / 2
-
-            if (hackPercent <= Number.MIN_VALUE) {
-                throw new Error(`Reached hackPercent ${hackPercent} while trying to hack ${target.hostname}`)
-            }
         }
     }
 }
