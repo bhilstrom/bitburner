@@ -44,7 +44,7 @@ function workForFaction(ns, sleeveNumber, faction) {
     for (let i = 0; i < workTypes.length; i++) {
         const workType = workTypes[i]
         if (ns.sleeve.setToFactionWork(sleeveNumber, faction, workType)) {
-            pp(ns, `Assigned sleeve ${sleeveNumber} to ${workType} work for ${faction}`, true)
+            pp(ns, `Assigned sleeve ${sleeveNumber} to ${workType} work for ${faction}`)
             return true
         }
     }
@@ -92,7 +92,7 @@ export async function main(ns) {
 
                 // Work for the first available priority faction, if we can.
                 let faction = priorityFactions.shift()
-                while (faction && !faction.includes(faction)) {
+                while (faction && !factions.includes(faction)) {
                     faction = priorityFactions.shift()
                 }
 
