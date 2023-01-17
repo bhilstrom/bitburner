@@ -10,7 +10,13 @@ export async function main(ns) {
     ns.exec('main.upgrade.js', 'home')
     ns.exec('main.early.js', 'home')
     ns.exec('main.factions.js', 'home')
-    ns.exec('sleeve.train.js', 'home')
+    ns.exec('main.early.crimeUntilCSEC.js', 'home')
+
+    if (ns.gang.inGang()) {
+        ns.exec('sleeve.train.js', 'home')
+    } else {
+        ns.exec('sleeve.murder.js', 'home')
+    }
 
     // Purchase enough 
 
