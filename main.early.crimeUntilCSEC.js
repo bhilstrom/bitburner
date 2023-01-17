@@ -44,7 +44,7 @@ function commitCrime(ns) {
 
 /** @param {import(".").NS } ns */
 async function commitCrimeUntilCSEC(ns) {
-    while (!ns.singularity.workForFaction(CSEC, 'Hacking contracts', false)) {
+    while (!ns.singularity.workForFaction('CyberSec', 'Hacking contracts', false)) {
         commitCrime(ns)
         await ns.sleep(1000)
     }
