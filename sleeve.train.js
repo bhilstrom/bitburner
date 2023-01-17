@@ -89,9 +89,14 @@ export async function main(ns) {
                 pp(ns, `Sleeve ${sleeveNum} has shock ${sleeve.shock}, recovering`)
                 ns.sleeve.setToShockRecovery(sleeveNum)
             } else {
-                let faction = priorityFactions.shift()
 
-                // If we don't have any more priority factions, just work for the first one.
+                // Work for the first available priority faction, if we can.
+                let faction = priorityFactions.shift()
+                while (faction && !faction.includes(faction)) {
+                    faction = priorityFactions.shift()
+                }
+
+                // If we don't have any priority factions, just work for the first one.
                 if (!faction || !factions.includes(faction)) {
                     faction = factions.shift()
                 }
