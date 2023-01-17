@@ -24,8 +24,8 @@ export function settings() {
 }
 
 /** @param {import(".").NS } ns */
-export async function runAndWaitFor(ns, scriptName, args) {
-  if (!ns.exec(scriptName, 'home', 1, args || [])) {
+export async function runAndWaitFor(ns, scriptName, ...args) {
+  if (!ns.exec(scriptName, 'home', 1, args)) {
     throw new Error(`Failed to start ${scriptName}`)
   }
 
