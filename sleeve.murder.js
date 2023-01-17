@@ -80,28 +80,22 @@ export async function main(ns) {
 
     await mugUntilThreshold(ns)
 
-    if (!ns.gang.inGang()) {
-        pp(ns, 'Starting homicides', true)
-        forEachSleeve(ns, (sleeveNum) => {
-            ns.sleeve.setToCommitCrime(sleeveNum, 'Homicide')
-        })
+    pp(ns, 'Starting homicides', true)
+    forEachSleeve(ns, (sleeveNum) => {
+        ns.sleeve.setToCommitCrime(sleeveNum, 'Homicide')
+    })
 
-        pp(ns, 'Waiting for negative-enough karma', true)
-        while (ns.heart.break() > -54000) {
-            pp(ns, `Current karma: ${ns.heart.break()}`)
-            await ns.sleep(30000)
-        }
-
-        pp(ns, 'Finished waiting for karma, setting all sleeves to shock recovery')
-        forEachSleeve(ns, (sleeveNum) => {
-            ns.sleeve.setToShockRecovery(sleeveNum)
-        })
-
-        ns.spawn('gang.start.js', 1)
-    } else {
-
-        // We're already in a gang, so we should just do shock recovery and training.
-        shockRecover(ns, 0)
-        ns.spawn('sleeve.train.js', 1)
+    pp(ns, 'Waiting for negative-enough karma', true)
+    while (ns.heart.break() > -54000) {
+        pp(ns, `Current karma: ${ns.heart.break()}`)
+        await ns.sleep(30000)
     }
+
+    pp(ns, 'Finished waiting for karma, setting all sleeves to shock recovery')
+    forEachSleeve(ns, (sleeveNum) => {
+        ns.sleeve.setToShockRecovery(sleeveNum)
+    })
+
+    ns.exec('gang.start.js', 1)
+    ns.spawn('sleeve.train.js', 1)
 }
