@@ -38,7 +38,7 @@ export async function runAndWaitFor(ns, scriptName, ...args) {
 
 /** @param {import(".").NS } ns */
 export async function runAndWaitForSpider(ns) {
-  runAndWaitFor(ns, 'spider.js')
+  await runAndWaitFor(ns, 'spider.js')
 }
 
 export function numberWithCommas(x) {
