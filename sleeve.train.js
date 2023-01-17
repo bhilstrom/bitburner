@@ -43,7 +43,19 @@ function workForFaction(ns, sleeveNumber, faction) {
 
     for (let i = 0; i < workTypes.length; i++) {
         const workType = workTypes[i]
-        if (ns.sleeve.setToFactionWork(sleeveNumber, faction, workType)) {
+
+        let result = false
+        try {
+            result = ns.sleeve.setToFactionWork(sleeveNumber, faction, workType)
+        } catch (error) {
+            // These can pop up after joining a new faction,
+            // because a sleeve can be assigned to what a different sleeve is already doing.
+            // This should resolve after a few iterations, as the different sleeves get assigned
+            // their new work and free up their old work.
+            pp(ns, `Error assigning work: ${error}`)
+        }
+
+        if (result) {
             pp(ns, `Assigned sleeve ${sleeveNumber} to ${workType} work for ${faction}`)
             return true
         }
@@ -108,9 +120,10 @@ export async function main(ns) {
 
                 // If we successfully worked for the faction,
                 // remove it from the options for the rest of the sleeves.
-                if (workForFaction(ns, sleeveNum, faction)) {
-                    factions = factions.filter(option => option != faction)
-                }
+                workForFaction(ns, sleeveNum, faction) 
+                
+                // We don't care if the work assignment was successful or not.
+                factions = factions.filter(option => option != faction)
             }
         })
 
