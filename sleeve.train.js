@@ -75,7 +75,12 @@ export async function main(ns) {
 
     while (true) {
         const priorityFactions = getPriorityFactions()
-        const factions = ns.getPlayer().factions
+        let factions = ns.getPlayer().factions
+
+        if (ns.gang.inGang()) {
+            const gangFaction = ns.gang.getGangInformation().faction
+            factions = factions.filter(faction => gangFaction != faction)
+        }
 
         forEachSleeve(ns, (sleeveNum) => {
 
