@@ -106,7 +106,11 @@ export async function main(ns) {
                     return
                 }
 
-                workForFaction(ns, sleeveNum, faction)
+                // If we successfully worked for the faction,
+                // remove it from the options for the rest of the sleeves.
+                if (workForFaction(ns, sleeveNum, faction)) {
+                    factions = factions.filter(option => option != faction)
+                }
             }
         })
 
