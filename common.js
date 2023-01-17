@@ -24,14 +24,21 @@ export function settings() {
 }
 
 /** @param {import(".").NS } ns */
-export async function runAndWaitForSpider(ns) {
-    if (!ns.exec('spider.js', 'home', 1)) {
-      throw new Error('Failed to start spider.js')
-    }
+export async function runAndWaitFor(ns, scriptName, args) {
+  if (!ns.exec(scriptName, 'home', 1, args)) {
+    throw new Error(`Failed to start ${scriptName}`)
+  }
 
-    while (ns.scriptRunning('spider.js', 'home')) {
-        await ns.sleep(1000)
-    }
+  await ns.sleep(0)
+
+  while (ns.scriptRunning(scriptName, 'home')) {
+      await ns.sleep(1000)
+  }
+}
+
+/** @param {import(".").NS } ns */
+export async function runAndWaitForSpider(ns) {
+  runAndWaitFor(ns, 'spider.js')
 }
 
 export function numberWithCommas(x) {
