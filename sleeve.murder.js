@@ -96,6 +96,6 @@ export async function main(ns) {
         ns.sleeve.setToShockRecovery(sleeveNum)
     })
 
-    ns.exec('gang.start.js', 1)
+    ns.exec('gang.start.js', 'home', 1)
     ns.spawn('sleeve.train.js', 1)
 }
