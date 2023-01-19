@@ -26,6 +26,7 @@ function getHackProgramAndArgs(ns) {
 
     let ramRequiredForFormulaHack = ns.getScriptRam(result.program)
     ramRequiredForFormulaHack += settings().homeRamReserved
+    ramRequiredForFormulaHack += ns.getScriptRam('grow.batch.js') * 100 // If we can't hack N times in addition to running formulaHack, it's not worth it
 
     // formulaHack requires at least one 'grow' instance to actually DO anything
     ramRequiredForFormulaHack += ns.getScriptExpGain('grow.batch.js')
