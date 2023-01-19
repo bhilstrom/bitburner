@@ -8,9 +8,9 @@ export async function main(ns) {
     ].forEach(logName => ns.disableLog(logName))
 
     ns.exec('main.upgrade.js', 'home')
-    ns.exec('main.early.js', 'home')
     ns.exec('main.factions.js', 'home')
     ns.exec('main.early.crimeUntilCSEC.js', 'home')
+    ns.exec('main.early.js', 'home')
 
     if (ns.gang.inGang()) {
         ns.exec('sleeve.train.js', 'home')
