@@ -1,28 +1,5 @@
 import { forEachSleeve, hasFormulasAccess, pp } from './common.js'
 
-// /** @param {import(".").NS } ns */
-// function getUniversityGain(ns) {
-//     if (hasFormulasAccess(ns)) {
-//         return ns.formulas.work.classGains(ns.getPlayer(), 'Study Computer Science', 'Rothman University').hackExp
-//     }
-
-//     return 1
-// }
-
-// /** @param {import(".").NS } ns */
-// function getTrainingOptions(ns) {
-//     return {
-//         university: {
-//             exe: (sleeveNumber, faction) => ns.sleeve.setToUniversityCourse(sleeveNumber),
-//             gainPerSecond: getUniveristyGains(ns)
-//         },
-//         fieldWork: {
-//             exe: (sleeveNumber, faction) => ns.sleeve.setToFactionWork(sleeveNumber, faction, 'Field Work'),
-//             gainPerSecond: 
-//         }
-//     }
-// }
-
 /** @param {import(".").NS } ns */
 function trainHacking(ns, sleeveNumber) {
     ns.sleeve.setToUniversityCourse(sleeveNumber, ns.enums.LocationName.Sector12RothmanUniversity, 'Study Computer Science')
@@ -113,9 +90,9 @@ export async function main(ns) {
                     faction = factions.shift()
                 }
 
-                // If we don't have ANY faction to work for, do nothing.
+                // If we don't have ANY faction to work for, Mug people.
                 if (!faction) {
-                    return
+                    ns.sleeve.setToCommitCrime(sleeveNum, ns.enums.CrimeType.mug)
                 }
 
                 // If we successfully worked for the faction,
