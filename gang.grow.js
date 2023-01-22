@@ -2,7 +2,7 @@ import { pp } from './common.js'
 import { getMaxGangSize, getTrainingTaskName } from './gang.common'
 
 const DELAY_AFTER_ASSIGNMENT = 200
-const COMBAT_WIN_THRESHOLD = .75
+const COMBAT_WIN_THRESHOLD = .65
 const COMBAT_EASY_THRESHOLD = .9
 
 const ASCENSION_MULTIPLIERS = {
@@ -225,7 +225,7 @@ export async function main(ns) {
     }
 
     // Max gang size takes too long to start territory warfare productively.
-    const desiredGangCount = 8
+    const desiredGangCount = 10
     while (members.length < desiredGangCount) {
 
         const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
@@ -283,6 +283,11 @@ export async function main(ns) {
         pp(ns, `Lowest chance to win against another gang is ${lowestChanceToWin}`)
 
         const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
+
+        // If we have been fighting, people might have died. If so, we need to recruit back to full.
+        if (sortedMemberInfos.length < getMaxGangSize() && !ns.scriptRunning('gang.recruit.js', 'home')) {
+            ns.exec('gang.recruit.js', 'home', 1)
+        }
 
         if (lowestChanceToWin < COMBAT_EASY_THRESHOLD) {
             // We need lots of people in territory warfare.
@@ -369,6 +374,11 @@ export async function main(ns) {
     while (true) {
 
         const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
+
+        // If we have been fighting, people might have died. If so, we need to recruit back to full.
+        if (sortedMemberInfos.length < getMaxGangSize() && !ns.scriptRunning('gang.recruit.js', 'home')) {
+            ns.exec('gang.recruit.js', 'home', 1)
+        }
 
         // The strongest should always make money.
         let memberInfo = sortedMemberInfos[0]
