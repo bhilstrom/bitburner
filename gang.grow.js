@@ -202,7 +202,7 @@ export async function main(ns) {
     // 11 members happens around stat level 630
     // 12 members happens around stat level 1000+ (?)
     // Max gang size takes too long to start territory warfare productively.
-    const desiredGangCount = 11
+    const desiredGangCount = 7
     while (members.length < desiredGangCount) {
 
         const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
@@ -277,10 +277,10 @@ export async function main(ns) {
 
             for (let i = memberIndex; i < sortedMemberInfos.length; i++) {
                 const memberInfo = sortedMemberInfos[i]
-                crimeForRep = getCrimeForRep(memberIndex, isHackGang)
+                crimeForRep = getCrimeForRep(i, isHackGang)
 
                 let task = territoryWarfare
-                let isInTopHalf = memberIndex <= Math.floor(sortedMemberInfos.length / 2)
+                let isInTopHalf = i <= Math.floor(sortedMemberInfos.length / 2)
                 if (sortedMemberInfos.length < getMaxGangSize() && isInTopHalf) {
                     task = crimeForRep
                 } else if (getLowestAscensionStat(memberInfo, isHackGang) < 2000) {
