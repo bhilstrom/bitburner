@@ -4,7 +4,8 @@ import { ascend, autocomplete as ascendAutoComplete } from './ascend.js'
 export async function main(ns) {
 
     // Only auto-ascend if we didn't encounter errors
-    if (!ascend(ns, ns.args)) {
+    const ascendResult = await ascend(ns, ns.args)
+    if (!ascendResult) {
         return
     }
 
