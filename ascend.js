@@ -171,10 +171,9 @@ async function upgradeHomeMachine(ns) {
 }
 
 /** @param {import(".").NS } ns */
-export async function main(ns) {
-
-    const forceHack = ns.args.includes(FORCE_HACK)
-    const forceNumber = ns.args.includes(FORCE_NUMBER)
+export async function ascend(ns, ... args) {
+    const forceHack = args.includes(FORCE_HACK)
+    const forceNumber = args.includes(FORCE_NUMBER)
 
     /*
     - Purchase any +hack augs
@@ -187,7 +186,7 @@ export async function main(ns) {
     const hackingAugCount = await purchaseStatAugs(ns, HACKING_STATS)
     if (hackingAugCount < 4 && !forceHack) {
         pp(ns, `Only able to purchase ${hackingAugCount} hacking augs, stopping script. Run with '${FORCE_HACK}' to bypass check.`, true)
-        return
+        return false
     }
 
     await purchaseStatAugs(ns, FACTION_STATS)
@@ -198,10 +197,16 @@ export async function main(ns) {
     const numberOfAugsPending = ns.singularity.getOwnedAugmentations(true).length - ns.singularity.getOwnedAugmentations(false).length
     if (numberOfAugsPending < 10 && !forceNumber) {
         pp(ns, `Only ${numberOfAugsPending} augs are pending installation, stopping script. Run with '${FORCE_NUMBER} to bypass check.`, true)
-        return
+        return false
     }
 
     await purchaseSleeveAugs(ns)
+    return true
+}
+
+/** @param {import(".").NS } ns */
+export async function main(ns) {
+    await ascend(ns, ns.args)
 }
 
 export function autocomplete(data, args) {
