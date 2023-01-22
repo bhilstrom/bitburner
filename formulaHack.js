@@ -288,10 +288,6 @@ function getGrowThreadsRequired(ns, target, startingMoney, desiredMoney, cores =
         return 0
     }
 
-    if (!Number.isFinite(growthAmount)) {
-        growthAmount = Number.MAX_SAFE_INTEGER - 1
-    }
-
     // growthAnalyze takes a growth FACTOR, not a growth amount
     let growthFactorWanted = desiredMoney / startingMoney
     if (!Number.isFinite(growthFactorWanted)) {
@@ -299,7 +295,6 @@ function getGrowThreadsRequired(ns, target, startingMoney, desiredMoney, cores =
     }
 
     return Math.ceil(ns.growthAnalyze(target.hostname, growthFactorWanted, cores))
-
 }
 
 /**
