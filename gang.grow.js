@@ -42,7 +42,7 @@ function getCrimeForRep(memberInfo, isHackGang) {
     }
 
     // Terrorism only works at high stat levels.
-    if (getLowestAscensionStat(memberInfo) < 500) {
+    if (getLowestAscensionStat(memberInfo) < 375) {
         return getDefaultCrime(isHackGang)
     }
 
@@ -209,17 +209,21 @@ export async function main(ns) {
         // Because we're getting the sorted member infos, the last person in the list is the weakest.
         const weakestMemberInfo = sortedMemberInfos[sortedMemberInfos.length - 1]
         const crimeForRep = getCrimeForRep(weakestMemberInfo, isHackGang)
+
+        pp(ns, `Crime for rep of weakest is ${crimeForRep}`)
         if (crimeForRep === 'Terrorism') {
             break
         }
+
+        // Everyone should be training.
+        sortedMemberInfos.forEach(memberInfo => {
+            assignToTask(ns, memberInfo, trainingTask)
+        })
 
         await ns.sleep(10 * 1000)
         members = ns.gang.getMemberNames()
     }
 
-    // 10 members happens around stat level 550
-    // 11 members happens around stat level 630
-    // 12 members happens around stat level 1000+ (?)
     // Max gang size takes too long to start territory warfare productively.
     const desiredGangCount = 8
     while (members.length < desiredGangCount) {
