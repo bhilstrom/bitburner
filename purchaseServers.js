@@ -22,28 +22,6 @@ function getSortedServers(ns) {
 }
 
 /** @param {import(".").NS } ns */
-async function decommissionAndKillServer(ns, hostname) {
-
-    const DECOMMISSION_FILENAME = settings().decommissionFilename
-    
-    if (ns.fileExists(DECOMMISSION_FILENAME, 'home')) {
-        ns.write(DECOMMISSION_FILENAME, 'Scheduled for decommission')
-    }
-
-    pp(ns, `Decommissioning ${hostname}`)
-    ns.scp(DECOMMISSION_FILENAME, hostname)
-
-    // While any script is running, sleepZ
-    while (ns.getServerUsedRam(hostname) != 0) {
-        pp(ns, `Scripts still running on ${hostname}...`)
-        await ns.sleep(5000)
-    }
-
-    pp(ns, `No more scripts running on ${hostname}, deleting server`)
-    ns.deleteServer(hostname)
-}
-
-/** @param {import(".").NS } ns */
 export async function main(ns) {
     pp(ns, 'Starting purchaseServers.js', true)
 
@@ -82,8 +60,7 @@ export async function main(ns) {
             const affordableRam = getRamToPurchase(ns)
             if (affordableRam > smallestServer.maxRam) {
                 pp(ns, `Upgrading ${smallestServer.hostname} from ${smallestServer.maxRam} to ${affordableRam}`, true)
-                await decommissionAndKillServer(ns, smallestServer.hostname)
-                ns.purchaseServer(smallestServer.hostname, affordableRam)
+                ns.upgradePurchasedServer(smallestServer.hostname, affordableRam)
                 spiderDataRefreshNeeded = true
             }
         }

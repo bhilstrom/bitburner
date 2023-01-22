@@ -8,12 +8,10 @@ function getRootedServers(ns, servers) {
     // Only include servers:
     // - With root access
     // - That have more than 1 ram
-    // - That aren't scheduled for decommission (other than home)
     const rootServers = Object.keys(servers)
         .filter((hostname) => ns.serverExists(hostname))
         .filter((hostname) => ns.hasRootAccess(hostname))
         .filter((hostname) => servers[hostname].ram >= 2)
-        .filter((hostname) => hostname === 'home' || !ns.fileExists(settings().decommissionFilename, hostname))
 
     // Copy hacking scripts to rooted servers
     rootServers
