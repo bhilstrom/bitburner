@@ -1,7 +1,7 @@
 import { pp } from './common.js'
 import { getMaxGangSize, getTrainingTaskName } from './gang.common'
 
-const DELAY_AFTER_ASSIGNMENT = 200
+const DELAY_AFTER_ASSIGNMENT = 500
 const COMBAT_WIN_THRESHOLD = .65
 const COMBAT_EASY_THRESHOLD = .9
 
