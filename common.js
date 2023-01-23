@@ -19,7 +19,6 @@ export function settings() {
           grow: 0.004,
           weaken: 0.05,
         },
-        decommissionFilename: 'decommission.txt',
     }
 }
 
