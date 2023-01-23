@@ -50,7 +50,7 @@ function getPriorityFactions() {
 }
 
 export function assignAllSleeves(ns, workTypes = undefined) {
-    const workTypes = workTypes || getDefaultWorkTypes()
+    workTypes = workTypes || getDefaultWorkTypes()
 
     const priorityFactions = getPriorityFactions()
     let factions = ns.getPlayer().factions
