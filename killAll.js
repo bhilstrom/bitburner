@@ -4,6 +4,8 @@ import { settings, getItem, pp } from './common.js'
 export async function main(ns) {
     pp(ns, "Starting killAll.js", true)
 
+    const killOnHome = ns.args[0]
+
     let hostname = ns.getHostname()
 
     if (hostname !== 'home') {
@@ -19,13 +21,20 @@ export async function main(ns) {
         return
     }
 
-    const killableServers = Object.keys(serverMap.servers)
+    let killableServers = Object.keys(serverMap.servers)
         .filter(hostname => ns.serverExists(hostname))
-        .filter(hostname => hostname !== 'home')
+
+    if (!killOnHome) {
+        killableServers = killableServers.filter(hostname => hostname !== 'home')
+    }
 
     killableServers.forEach(hostname => {
         ns.killall(hostname, true)
     })
 
     pp(ns, "All processes killed", true)
+}
+
+export function autocomplete(data, args) {
+    return [true]
 }
