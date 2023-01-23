@@ -53,7 +53,7 @@ async function shockRecover(ns, threshold) {
 }
 
 /** @param {import(".").NS } ns */
-async function workUntilThreshold(ns) {
+async function recoverAndWorkUntilThreshold(ns) {
 
     if (!anySleeveBelowThreshold(ns)) {
         pp(ns, `All sleeve stats above ${STAT_THRESHOLD}`, true)
@@ -70,7 +70,7 @@ async function workUntilThreshold(ns) {
         ns.enums.FactionWorkType.field
     ]
     while (anySleeveBelowThreshold(ns)) {
-        assignAllSleeves(ns, workTypes)
+        assignAllSleeves(ns, workTypes, SHOCK_THRESHOLD)
         await ns.sleep(30 * 1000)
     }
     pp(ns, `All stats ${STAT_THRESHOLD} or above!`, true)
@@ -81,9 +81,7 @@ export async function main(ns) {
 
     ns.disableLog('sleep')
 
-    await shockRecover(ns)
-
-    await workUntilThreshold(ns)
+    await recoverAndWorkUntilThreshold(ns)
 
     pp(ns, 'Starting homicides', true)
     forEachSleeve(ns, (sleeveNum) => {

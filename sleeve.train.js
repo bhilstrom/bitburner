@@ -49,7 +49,7 @@ function getPriorityFactions() {
     ]
 }
 
-export function assignAllSleeves(ns, workTypes = undefined) {
+export function assignAllSleeves(ns, workTypes = undefined, shockThreshold = 5) {
     workTypes = workTypes || getDefaultWorkTypes()
 
     const priorityFactions = getPriorityFactions()
@@ -62,7 +62,7 @@ export function assignAllSleeves(ns, workTypes = undefined) {
 
     forEachSleeve(ns, (sleeveNum) => {
         const sleeve = ns.sleeve.getSleeve(sleeveNum)
-        if (sleeve.shock > 5) {
+        if (sleeve.shock > shockThreshold) {
             pp(ns, `Sleeve ${sleeveNum} has shock ${sleeve.shock}, recovering`)
             ns.sleeve.setToShockRecovery(sleeveNum)
         } else {
