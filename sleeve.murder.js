@@ -70,7 +70,7 @@ async function recoverAndWorkUntilThreshold(ns) {
         ns.enums.FactionWorkType.field
     ]
     while (anySleeveBelowThreshold(ns)) {
-        assignAllSleeves(ns, workTypes, SHOCK_THRESHOLD)
+        await assignAllSleeves(ns, workTypes, SHOCK_THRESHOLD)
         await ns.sleep(30 * 1000)
     }
     pp(ns, `All stats ${STAT_THRESHOLD} or above!`, true)
