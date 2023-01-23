@@ -34,7 +34,10 @@ export async function main(ns) {
     const serverNamePrefix = "pserv-"
     const purchasedServerLimit = ns.getPurchasedServerLimit()
 
-    while (true) {
+    const numberToPurchase = ns.args[0] || Number.MAX_SAFE_INTEGER
+
+    let purchasesMade = 0
+    while (purchasesMade < numberToPurchase) {
 
         let servers = getSortedServers(ns)
         // pp(ns, `Purchased servers: ${JSON.stringify(servers, null, 2)}`, true)
@@ -73,6 +76,9 @@ export async function main(ns) {
             ns.exec('spider.js', 'home')
         }
 
+        purchasesMade++
         await ns.sleep(5000)
     }
+
+    pp(ns, `Successfully purchased or upgrade ${numberToPurchase} servers.`)
 }
