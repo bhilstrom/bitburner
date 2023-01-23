@@ -1,4 +1,5 @@
 import { pp, forEachSleeve } from './common.js'
+import { assignAllSleeves } from './sleeve.train.js'
 
 const STAT_THRESHOLD = 140
 const SHOCK_THRESHOLD = 60
@@ -52,21 +53,24 @@ async function shockRecover(ns, threshold) {
 }
 
 /** @param {import(".").NS } ns */
-async function mugUntilThreshold(ns) {
+async function workUntilThreshold(ns) {
 
     if (!anySleeveBelowThreshold(ns)) {
         pp(ns, `All sleeve stats above ${STAT_THRESHOLD}`, true)
         return
     }
 
-    pp(ns, `At least one sleeve with stats below ${STAT_THRESHOLD}, setting all to Mug`, true)
-    forEachSleeve(ns, (sleeveNum) => {
-        ns.sleeve.setToCommitCrime(sleeveNum, 'Mug')
-    })
-
     pp(ns, `Waiting for all stats to be ${STAT_THRESHOLD} or above`, true)
+
+    // Security work gains crime stats faster.
+    // Field work is acceptable.
+    // Don't bother with hacking, we'd prefer to commit crime in that case.
+    const workTypes = [
+        ns.enums.FactionWorkType.security,
+        ns.enums.FactionWorkType.field
+    ]
     while (anySleeveBelowThreshold(ns)) {
-        await ns.sleep(30 * 1000)
+        assignAllSleeves(ns)
     }
     pp(ns, `All stats ${STAT_THRESHOLD} or above!`, true)
 }
@@ -78,7 +82,7 @@ export async function main(ns) {
 
     await shockRecover(ns)
 
-    await mugUntilThreshold(ns)
+    await workUntilThreshold(ns)
 
     pp(ns, 'Starting homicides', true)
     forEachSleeve(ns, (sleeveNum) => {
