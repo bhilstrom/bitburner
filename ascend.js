@@ -206,7 +206,7 @@ export async function ascend(ns, ... args) {
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
-    await ascend(ns, ns.args)
+    await ascend(ns, ...ns.args)
 }
 
 export function autocomplete(data, args) {
