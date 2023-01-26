@@ -40,7 +40,7 @@ function matchesDesiredAugType(ns, desired, augName) {
     if (desired === 'hack') {
         desiredStats = getHackStats()
     } else if (desired === 'factionRep') {
-        desiredStats = [ 'factionRep' ]
+        desiredStats = ['factionRep']
     }
 
     const augStats = ns.singularity.getAugmentationStats(augName)
@@ -87,21 +87,18 @@ export async function main(ns) {
         })
     })
 
-    const gangFaction = ns.gang.getGangInformation().faction
+    // Remove augs we already own
     augs = getFilteredAugs(augs, (augName) => {
-        
-        // Remove augs we already own
-        if (ns.singularity.getOwnedAugmentations(true).includes(augName)) {
-            return false
-        }
-
-        // Remove augs available from our gang
-        if (augs[augName].factions.includes(gangFaction)) {
-            return false
-        }
-
-        return true
+        return !ns.singularity.getOwnedAugmentations(true).includes(augName)
     })
+
+    // Remove augs available from our gang
+    if (ns.gang.inGang()) {
+        const gangFaction = ns.gang.getGangInformation().faction
+        augs = getFilteredAugs(augs, (augName) => {
+            return !augs[augName].factions.includes(gangFaction)
+        })
+    }
 
     pp(ns, `Fantastic Augs and Where to Find Them:`, true)
     Object.keys(augs).forEach(augName => {
