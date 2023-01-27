@@ -1,18 +1,20 @@
-/** @param {NS} ns */
-
 const CITIES = ["Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven", "Sector-12"];
 
 const AGRICULTURE_NAME = "Ag"
+const TOBACCO_NAME = "Tob"
 
 //Buying coffee and throwing parties to those offices that needs them
-async function coffeeParty(c) {
+/** @param {import(".").NS } ns */
+async function coffeeParty(ns, division) {
+    let c = ns.corporation
     for (const city of CITIES) {
-        const office = c.getOffice(AGRICULTURE_NAME, city)
-        if (office.avgEne < 95) c.buyCoffee(AGRICULTURE_NAME, city)
-        if (office.avgHap < 95 || office.avgMor < 95) c.throwParty(AGRICULTURE_NAME, city, 500_000)
+        const office = c.getOffice(division, city)
+        if (office.avgEne < 95) c.buyCoffee(division, city)
+        if (office.avgHap < 95 || office.avgMor < 95) c.throwParty(division, city, 500_000)
     }
 }
 
+/** @param {import(".").NS } ns */
 export async function main(ns) {
     ns.tail(); ns.disableLog("ALL"); ns.clearLog();
 
@@ -30,6 +32,7 @@ export async function main(ns) {
 			await ns.sleep(0);
 		}
 
-        await coffeeParty(c)
+        await coffeeParty(c, AGRICULTURE_NAME)
+        await coffeeParty(c, TOBACCO_NAME)
     }
 }
