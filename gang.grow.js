@@ -327,10 +327,10 @@ export async function main(ns) {
             let memberIndex = 0
             assignToTask(ns, sortedMemberInfos[memberIndex++], territoryWarfare)
 
-            let crimeForRep = getCrimeForRep(sortedMemberInfos[memberIndex++], isHackGang)
+            let crimeForRep = getCrimeForRep(sortedMemberInfos[memberIndex], isHackGang)
             assignToTask(ns, sortedMemberInfos[memberIndex++], crimeForRep)
 
-            crimeForRep = getCrimeForRep(sortedMemberInfos[memberIndex++], isHackGang)
+            crimeForRep = getCrimeForRep(sortedMemberInfos[memberIndex], isHackGang)
             assignToTask(ns, sortedMemberInfos[memberIndex++], crimeForRep)
 
             assignToTask(ns, sortedMemberInfos[memberIndex++], moneyCrime)
@@ -341,17 +341,16 @@ export async function main(ns) {
 
             // Assign as many people to wanted level removal as is necessary
             let task = getTargetCrimeOrWantedRemoval(ns, trainingTask, wantedLevelRemovalCrime)
-            let index = 4
-            while (task !== trainingTask && index < sortedMemberInfos.length) {
-                assignToTask(ns, sortedMemberInfos[index], task)
-                index += 1
+            while (task !== trainingTask && memberIndex < sortedMemberInfos.length) {
+                assignToTask(ns, sortedMemberInfos[memberIndex], task)
                 await ns.sleep(DELAY_AFTER_ASSIGNMENT)
                 task = getTargetCrimeOrWantedRemoval(ns, trainingTask, wantedLevelRemovalCrime)
+                memberIndex++
             }
 
             // Everyone else trains
-            for (let i = index; i < sortedMemberInfos.length; i++) {
-                assignToTask(ns, sortedMemberInfos[i], trainingTask)
+            while (memberIndex < sortedMemberInfos.length) {
+                assignToTask(ns, sortedMemberInfos[memberIndex++], trainingTask)
             }
         }
 
