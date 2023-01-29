@@ -393,10 +393,10 @@ export async function main(ns) {
 
             // Priority is as follows:
             // 1. Wanted level removal
-            // 2. Training to 7k as lowest stat
+            // 2. Training to 6k as lowest stat
             // 3. Make money
             let crime = getTargetCrimeOrWantedRemoval(ns, moneyCrime, wantedLevelRemovalCrime)
-            if (crime === moneyCrime && getLowestAscensionStat(memberInfo, isHackGang) < 7000) {
+            if (crime === moneyCrime && getLowestAscensionStat(memberInfo, isHackGang) < 6000) {
                 crime = trainingTask
             }
 
