@@ -69,11 +69,23 @@ async function recoverAndWorkUntilThreshold(ns) {
         ns.enums.FactionWorkType.security,
         ns.enums.FactionWorkType.field
     ]
-    while (anySleeveBelowThreshold(ns)) {
+
+    // Stop when either:
+    // 1. All sleeves are above the state threshold for the desired crime.
+    // 2. Our karma is below the threshold for starting a gang.
+    while (anySleeveBelowThreshold(ns) && karmaAboveThreshold(ns)) {
         await assignAllSleeves(ns, workTypes, SHOCK_THRESHOLD)
         await ns.sleep(30 * 1000)
     }
-    pp(ns, `All stats ${STAT_THRESHOLD} or above!`, true)
+
+    if (!anySleeveBelowThreshold) {
+        pp(ns, `All stats ${STAT_THRESHOLD} or above!`, true)
+    }
+}
+
+/** @param {import(".").NS } ns */
+function karmaAboveThreshold(ns) {
+    return ns.heart.break() > -54_000
 }
 
 /** @param {import(".").NS } ns */
@@ -89,7 +101,7 @@ export async function main(ns) {
     })
 
     pp(ns, 'Waiting for negative-enough karma', true)
-    while (ns.heart.break() > -54000) {
+    while (karmaAboveThreshold()) {
         pp(ns, `Current karma: ${ns.heart.break()}`)
         await ns.sleep(30000)
     }
