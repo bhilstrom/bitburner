@@ -27,11 +27,19 @@ function createCorp(ns) {
     let c = ns.corporation
 
     // Self-funding is better.
-    // If that fails, 
-    if (c.createCorporation(CORP_NAME, false)) {
-        pp(ns, "Created corp using self-funding", true)
+    // If that fails, self-fund.
+
+    let created = false
+    try {
+        created = c.createCorporation(CORP_NAME, false)
+        if (created) {
+            pp(ns, "Created corp using self-funding", true)
+        }
+    } catch {
+        // No-op. Outside of Bitnode 3, this is expected to fail.
     }
-    else {
+
+    if (!created) {
         c.createCorporation(CORP_NAME, true)
         pp(ns, "Created corp without self-funding", true)
     }
@@ -52,16 +60,21 @@ function createAgriculture(ns) {
 function coffeeParty(ns, division) {
     let c = ns.corporation
     const cities = getCities(ns)
+    let anyNeeded = false
     for (const city of cities) {
         const office = c.getOffice(division, city)
         if (office.avgEne < 95) {
+            anyNeeded = true
             c.buyCoffee(division, city)
         }
 
         if (office.avgHap < 95 || office.avgMor < 95) {
+            anyNeeded = true
             c.throwParty(division, city, 500_000)
         }
     }
+
+    return anyNeeded
 }
 
 /** @param {import(".").NS } ns */
@@ -107,17 +120,41 @@ function tobaccoNotAvailable(ns) {
 }
 
 /** @param {import(".").NS } ns */
-function needMoney(ns) {
-    return ns.corporation.getCorporation().funds < 0
+function expandToTobacco(ns) {
+    pp(ns, `Creating ${TOBACCO_NAME} division`, true)
+    ns.corporation.expandIndustry("Tobacco", TOBACCO_NAME)
 }
 
 /** @param {import(".").NS } ns */
-function getInvestorOffer(ns) {
+function needInvestorRound(ns, division, round) {
+    return ns.corporation.getInvestmentOffer().round == round
+}
+
+/** @param {import(".").NS } ns */
+async function getInvestorOffer(ns, division, round) {
     let c = ns.corporation
 
-    const offer = c.getInvestmentOffer()
+    pp(ns, `Starting to get investor offer...`)
 
-    const expectedAmounts = []
+    // Make sure we're at max stats
+    while (coffeeParty(ns, division)) {
+        pp(ns, `... maximizing stats`)
+        await ns.sleep(200)
+    }
+
+    // Investor evaluation takes 5 cycles into account.
+    // We want to use our current high stats, so wait for 5 cycles.
+    const cycles = 5
+    for (let i = 0; i < cycles; i++) {
+        pp(ns, `... waiting for cycle (${i+1}/${cycles})`)
+        await waitForCycle(ns)
+
+        // Make sure our stats stay up
+        coffeeParty(ns, division)
+    }
+
+    pp(ns, `Accepting offer at ${ns.nFormat(c.getInvestmentOffer().funds, "0.00a")}`)
+    c.acceptInvestmentOffer()
 }
 
 /** @param {import(".").NS } ns */
@@ -192,12 +229,22 @@ async function upgradeWarehouse(ns, division, level) {
     }
 }
 
+function getJobTitles() {
+    return [
+        "Operations",
+        "Engineer",
+        "Business",
+        "Management",
+        "Research & Development",
+    ]
+}
+
 /** @param {import(".").NS } ns */
 function needToHireOrAssign(ns, division, desiredJobs) {
     for (const city of getCities(ns)) {
         const office = ns.corporation.getOffice(division, city)
-        for (const job of Object.keys(desiredJobs)) {
-
+        for (const job of getJobTitles()) {
+            
             // != is correct, because we might have more people assigned than we should.
             if (office.employeeJobs[job] != desiredJobs[job]) {
                 return true
@@ -229,8 +276,10 @@ async function hireOrAssign(ns, division, desiredJobs) {
         }
 
         // Assign people to the appropriate job
-        for (const job of Object.keys(desiredJobs)) {
-            const numWorkers = desiredJobs[job]
+        for (const job of getJobTitles()) {
+            // If we don't list the job, assign 0 pepole to it
+            const numWorkers = desiredJobs[job] || 0
+
             pp(ns, `Assigning ${numWorkers} to ${job} in ${division}.${city}`)
             ns.corporation.setAutoJobAssignment(division, city, job, numWorkers)
         }
@@ -392,18 +441,13 @@ export async function main(ns) {
     }
 
     expandToAllCities(ns, AGRICULTURE_NAME)
-    buyAdvert(ns, AGRICULTURE_NAME)
+    buyAdvert(ns, AGRICULTURE_NAME, 1)
 
     const steps = [
         {
             condition: needUnlockUpgrade,
             action: unlockUpgrade,
             args: ["Smart Supply"]
-        },
-        {
-            condition: notInAllCities,
-            action: expandToAllCities,
-            args: [AGRICULTURE_NAME],
         },
         {
             condition: needWarehouseLevel,
@@ -428,9 +472,9 @@ export async function main(ns) {
             }]
         },
         {
-            condition: needAdvert,
-            action: buyAdvert,
-            args: [AGRICULTURE_NAME, 1]
+            condition: needWarehouseLevel,
+            action: upgradeWarehouse,
+            args: [AGRICULTURE_NAME, 3],
         },
         {
             condition: needUpgrades,
@@ -453,25 +497,78 @@ export async function main(ns) {
             }],
         },
         {
-            condition: needMoney,
+            condition: needInvestorRound,
             action: getInvestorOffer,
+            args: [AGRICULTURE_NAME, 1]
         },
         {
-            condition: needMaterials_1,
-            action: buyMaterials_1,
+            condition: needToHireOrAssign,
+            action: hireOrAssign,
+            args: [AGRICULTURE_NAME, {
+                Operations: 1,
+                Engineer: 1,
+                Business: 1,
+                Management: 1,
+                "Research & Development": 5,
+            }],
         },
         {
             condition: needUpgrades,
             action: buyUpgrades,
+            args: [{
+                "Smart Factories": 10,
+                "Smart Storage": 10,
+            }]
         },
         {
-            condition: needToReassignEmployees,
-            action: reassignEmployees,
+            condition: needWarehouseLevel,
+            action: upgradeWarehouse,
+            args: [AGRICULTURE_NAME, 10],
         },
         {
-            condition: needMaterials_2,
-            action: buyMaterials_2
+            condition: needMaterials,
+            action: setMaterials,
+            args: [AGRICULTURE_NAME, {
+                "Hardware": 2_800,
+                "Robots": 96,
+                "AI Cores": 2_520,
+                "Real Estate": 146_400,
+            }],
         },
+        {
+            condition: needToHireOrAssign,
+            action: hireOrAssign,
+            args: [AGRICULTURE_NAME, {
+                Operations: 3,
+                Engineer: 2,
+                Business: 2,
+                Management: 2,
+            }],
+        },
+        {
+            condition: needInvestorRound,
+            action: getInvestorOffer,
+            args: [AGRICULTURE_NAME, 2]
+        },
+        {
+            condition: needWarehouseLevel,
+            action: upgradeWarehouse,
+            args: [AGRICULTURE_NAME, 19],
+        },
+        {
+            condition: needMaterials,
+            action: setMaterials,
+            args: [AGRICULTURE_NAME, {
+                "Hardware": 9_300,
+                "Robots": 726,
+                "AI Cores": 6_270,
+                "Real Estate": 230_400,
+            }],
+        },
+        {
+            condition: tobaccoNotAvailable,
+            action: expandToTobacco,
+        }
     ]
 
     while (tobaccoNotAvailable(ns)) {
@@ -487,4 +584,6 @@ export async function main(ns) {
 
         await ns.sleep(100)
     }
+    
+    pp(ns, `CORP START DONE, CHECK IT OUT!`, true)
 }
