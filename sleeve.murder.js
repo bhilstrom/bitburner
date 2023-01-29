@@ -101,7 +101,7 @@ export async function main(ns) {
     })
 
     pp(ns, 'Waiting for negative-enough karma', true)
-    while (karmaAboveThreshold()) {
+    while (karmaAboveThreshold(ns)) {
         pp(ns, `Current karma: ${ns.heart.break()}`)
         await ns.sleep(30000)
     }
