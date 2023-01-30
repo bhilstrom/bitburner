@@ -4,6 +4,8 @@ const CORP_NAME = "MoneyMaker"
 const AGRICULTURE_NAME = "Ag"
 const TOBACCO_NAME = "Tob"
 
+let JOB_ASSIGNMENT_STAGE = 0
+
 /** @param {import(".").NS } ns */
 function getCities(ns) {
     let cityName = ns.enums.CityName
@@ -47,7 +49,7 @@ function createCorp(ns) {
 
 /** @param {import(".").NS } ns */
 function needsAgriculture(ns) {
-    return ns.corporation.getDivision(AGRICULTURE_NAME) === undefined
+    return !divisionExists(ns, AGRICULTURE_NAME)
 }
 
 /** @param {import(".").NS } ns */
@@ -59,17 +61,26 @@ function createAgriculture(ns) {
 /** @param {import(".").NS } ns */
 function coffeeParty(ns, division) {
     let c = ns.corporation
-    const cities = getCities(ns)
     let anyNeeded = false
-    for (const city of cities) {
-        const office = c.getOffice(division, city)
+    for (const city of getCities(ns)) {
+
+        // Getting the office fails if we haven't expanded to the division or city yet
+        let office
+        try {
+            office = c.getOffice(division, city)
+        } catch {
+            return true
+        }
+        
         if (office.avgEne < 95) {
             anyNeeded = true
+            pp(ns, `Buying coffee for ${division}.${city}`)
             c.buyCoffee(division, city)
         }
 
         if (office.avgHap < 95 || office.avgMor < 95) {
             anyNeeded = true
+            pp(ns, `Throwing party for ${division}.${city}`)
             c.throwParty(division, city, 500_000)
         }
     }
@@ -86,7 +97,7 @@ function anyCityNeedsCoffeeOrParty(ns) {
         for (const division of [AGRICULTURE_NAME, TOBACCO_NAME]) {
             const office = c.getOffice(division, city)
 
-            const lowestStat = Math.min(office.avgEne, avgHap, avgMor)
+            const lowestStat = Math.min(office.avgEne, office.avgHap, office.avgMor)
             if (lowestStat < 95) {
                 return true
             }
@@ -115,14 +126,32 @@ async function runNextStep(ns, steps) {
 }
 
 /** @param {import(".").NS } ns */
+function divisionExists(ns, division) {
+    try {
+        return ns.corporation.getDivision(division) !== undefined
+    } catch {
+        return false
+    }
+}
+
+/** @param {import(".").NS } ns */
 function tobaccoNotAvailable(ns) {
-    return ns.corporation.getDivision(TOBACCO_NAME) === undefined
+    return !divisionExists(ns, TOBACCO_NAME)
 }
 
 /** @param {import(".").NS } ns */
 function expandToTobacco(ns) {
     pp(ns, `Creating ${TOBACCO_NAME} division`, true)
     ns.corporation.expandIndustry("Tobacco", TOBACCO_NAME)
+}
+
+/** @param {import(".").NS } ns */
+async function waitForMaxStats(ns, division) {
+    pp(ns, 'Looping for max stats...')
+    while (coffeeParty(ns, division) && ns.corporation.getCorporation().funds > 0) {
+        pp(ns, `... maximizing stats`)
+        await ns.sleep(500)
+    }
 }
 
 /** @param {import(".").NS } ns */
@@ -137,16 +166,13 @@ async function getInvestorOffer(ns, division, round) {
     pp(ns, `Starting to get investor offer...`)
 
     // Make sure we're at max stats
-    while (coffeeParty(ns, division)) {
-        pp(ns, `... maximizing stats`)
-        await ns.sleep(200)
-    }
+    await waitForMaxStats(ns, division)
 
     // Investor evaluation takes 5 cycles into account.
     // We want to use our current high stats, so wait for 5 cycles.
     const cycles = 5
     for (let i = 0; i < cycles; i++) {
-        pp(ns, `... waiting for cycle (${i+1}/${cycles})`)
+        pp(ns, `... waiting for cycle (${i + 1}/${cycles})`)
         await waitForCycle(ns)
 
         // Make sure our stats stay up
@@ -159,14 +185,39 @@ async function getInvestorOffer(ns, division, round) {
 
 /** @param {import(".").NS } ns */
 async function expandToAllCities(ns, division) {
-    getCities().forEach(city => {
-        ns.corporation.expandCity(division, city)
+    let c = ns.corporation
+    getCities(ns).forEach(city => {
+        try {
+            c.expandCity(division, city)
+            pp(ns, `Expanded ${division} to ${city}`)
+        } catch {
+            // Error is thrown if we've already expanded to the city.
+            pp(ns, `${division}.${city} already exists`)
+        }
     })
 }
 
 /** @param {import(".").NS } ns */
+function needToTurnOnSmartSupply(ns, division) {
+    for (const city of getCities(ns)) {
+        if (!ns.corporation.getWarehouse(division, city).smartSupplyEnabled) {
+            return true
+        }
+    }
+
+    return false
+}
+
+/** @param {import(".").NS } ns */
+async function turnOnSmartSupply(ns, division) {
+    for (const city of getCities(ns)) {
+        ns.corporation.setSmartSupply(division, city, true)
+    }
+}
+
+/** @param {import(".").NS } ns */
 function notInAllCities(ns, division) {
-    return ns.corporation.getDivision(division).cities.length < getCities().length
+    return ns.corporation.getDivision(division).cities.length < getCities(ns).length
 }
 
 /** @param {import(".").NS } ns */
@@ -239,14 +290,26 @@ function getJobTitles() {
     ]
 }
 
+
+
 /** @param {import(".").NS } ns */
-function needToHireOrAssign(ns, division, desiredJobs) {
+function needToHireOrAssign(ns, division, stage, desiredJobs) {
+
+    // Skip earlier stages
+    if (stage < JOB_ASSIGNMENT_STAGE) {
+        return
+    }
+    JOB_ASSIGNMENT_STAGE = stage
+
     for (const city of getCities(ns)) {
         const office = ns.corporation.getOffice(division, city)
         for (const job of getJobTitles()) {
-            
+
             // != is correct, because we might have more people assigned than we should.
-            if (office.employeeJobs[job] != desiredJobs[job]) {
+            const current = office.employeeJobs[job]
+            const desired = desiredJobs[job] || 0
+            if (current != desired) {
+                pp(ns, `Need to change assignment in ${division}.${city}, ${job} has ${current}/${desired}`)
                 return true
             }
         }
@@ -256,7 +319,14 @@ function needToHireOrAssign(ns, division, desiredJobs) {
 }
 
 /** @param {import(".").NS } ns */
-async function hireOrAssign(ns, division, desiredJobs) {
+async function hireOrAssign(ns, division, stage, desiredJobs) {
+    // Skip earlier stages
+    if (stage < JOB_ASSIGNMENT_STAGE) {
+        return
+    }
+    JOB_ASSIGNMENT_STAGE = stage
+
+    let anyHired = false
     for (const city of getCities(ns)) {
         const office = ns.corporation.getOffice(division, city)
 
@@ -271,6 +341,7 @@ async function hireOrAssign(ns, division, desiredJobs) {
 
         // Hire people if necessary
         while (ns.corporation.hireEmployee(division, city)) {
+            anyHired = true
             pp(ns, `Hiring in ${division}.${city}`)
             await ns.sleep(0)
         }
@@ -283,6 +354,10 @@ async function hireOrAssign(ns, division, desiredJobs) {
             pp(ns, `Assigning ${numWorkers} to ${job} in ${division}.${city}`)
             ns.corporation.setAutoJobAssignment(division, city, job, numWorkers)
         }
+    }
+
+    if (anyHired) {
+        await waitForMaxStats(ns, division)
     }
 }
 
@@ -312,7 +387,8 @@ async function sellMaterial(ns, division, sales) {
 
 /** @param {import(".").NS } ns */
 function needUpgrades(ns, upgrades) {
-    for (const upgrade in Object.keys(upgrades)) {
+    for (const upgrade of Object.keys(upgrades)) {
+        pp(ns, `Checking upgrade ${upgrade}`)
         const desiredLevel = upgrades[upgrade]
         if (ns.corporation.getUpgradeLevel(upgrade) < desiredLevel) {
             return true
@@ -322,8 +398,9 @@ function needUpgrades(ns, upgrades) {
 
 /** @param {import(".").NS } ns */
 async function buyUpgrades(ns, upgrades) {
+    pp(ns, `Buying upgrades: ${JSON.stringify(upgrades, null, 2)}`)
     let c = ns.corporation
-    for (const upgrade in Object.keys(upgrades)) {
+    for (const upgrade of Object.keys(upgrades)) {
         const desiredLevel = upgrades[upgrade]
         let remaining = desiredLevel - c.getUpgradeLevel(upgrade)
         while (remaining > 0) {
@@ -364,6 +441,9 @@ async function setMaterials(ns, division, materials) {
         }
     }
 
+    // Wait until we have max stats, because we'll likely go in debt with this purchase
+    await waitForMaxStats(ns, division)
+
     // Only do it once per cycle
     await waitForCycle(ns)
 
@@ -379,7 +459,7 @@ async function setMaterials(ns, division, materials) {
     // Set data to 0
     purchases.forEach(purchase => {
         pp(ns, `Zeroing out purchase of ${purchase.material} in ${division}.${purchase.city}`)
-        c.buyMaterial(division, purchase.city, 0)
+        c.buyMaterial(division, purchase.city, purchase.material, 0)
     })
 
     // Ensure the purchase went through so other calculations are correct
@@ -395,12 +475,18 @@ async function waitForCycle(ns) {
     // out of the unique value.
     // This ensures it happens only once per cycle.
     const stateToCheck = "EXPORT"
-    while (c.getCorporation().state != stateToCheck) {
-        await ns.sleep(0)
-    }
     while (c.getCorporation().state == stateToCheck) {
         await ns.sleep(0)
     }
+    while (c.getCorporation().state != stateToCheck) {
+        await ns.sleep(0)
+    }
+
+    // This loop is necessary to ensure we complete a FULL cycle.
+    // Otherwise, the loop ends when we're at the start of the checked state, not the end of it.
+    // while (c.getCorporation().state == stateToCheck) {
+    //     await ns.sleep(0)
+    // }
 }
 
 /** @param {import(".").NS } ns */
@@ -411,15 +497,14 @@ export async function main(ns) {
 
     if (needToCreateCorp(ns)) {
         createCorp(ns)
+    } else {
+        pp(ns, "Corp already exists, not creating")
     }
 
     if (needsAgriculture(ns)) {
         createAgriculture(ns)
-    }
-
-    while (anyCityNeedsCoffeeOrParty(ns)) {
-        coffeeParty(ns, AGRICULTURE_NAME)
-        await ns.sleep(100)
+    } else {
+        pp(ns, "Agriculture division already exists, not creating")
     }
 
     /*
@@ -433,21 +518,18 @@ export async function main(ns) {
     Expand to Tobacco
     */
 
-    const materialsToPurchase = [
-    ]
-
-    {
-        ns.corporation.hireEmployee()
-    }
-
-    expandToAllCities(ns, AGRICULTURE_NAME)
-    buyAdvert(ns, AGRICULTURE_NAME, 1)
+    pp(ns, "Got to steps!")
 
     const steps = [
         {
             condition: needUnlockUpgrade,
             action: unlockUpgrade,
-            args: ["Smart Supply"]
+            args: ["Smart Supply"],
+        },
+        {
+            condition: notInAllCities,
+            action: expandToAllCities,
+            args: [AGRICULTURE_NAME]
         },
         {
             condition: needWarehouseLevel,
@@ -455,13 +537,23 @@ export async function main(ns) {
             args: [AGRICULTURE_NAME, 1],
         },
         {
+            condition: needToTurnOnSmartSupply,
+            action: turnOnSmartSupply,
+            args: [AGRICULTURE_NAME]
+        },
+        {
             condition: needToHireOrAssign,
             action: hireOrAssign,
-            args: [AGRICULTURE_NAME, {
+            args: [AGRICULTURE_NAME, 1, {
                 Operations: 1,
                 Engineer: 1,
                 Business: 1
             }],
+        },
+        {
+            condition: needAdvert,
+            action: buyAdvert,
+            args: [AGRICULTURE_NAME, 1]
         },
         {
             condition: needToSellMaterial,
@@ -504,7 +596,7 @@ export async function main(ns) {
         {
             condition: needToHireOrAssign,
             action: hireOrAssign,
-            args: [AGRICULTURE_NAME, {
+            args: [AGRICULTURE_NAME, 2, {
                 Operations: 1,
                 Engineer: 1,
                 Business: 1,
@@ -538,7 +630,7 @@ export async function main(ns) {
         {
             condition: needToHireOrAssign,
             action: hireOrAssign,
-            args: [AGRICULTURE_NAME, {
+            args: [AGRICULTURE_NAME, 3, {
                 Operations: 3,
                 Engineer: 2,
                 Business: 2,
@@ -574,16 +666,18 @@ export async function main(ns) {
     while (tobaccoNotAvailable(ns)) {
         coffeeParty(ns, AGRICULTURE_NAME)
 
-        for (const step in steps) {
+        for (const step of steps) {
             const args = step.args || []
-            if (step.condition(ns, ...args)) {
-                await step.action(ns, ...args)
+            const condition = step.condition
+            // pp(ns, `Condition: ${condition}, action: ${step.action}, args: ${JSON.stringify(step.args, null, 2)}`)
+            if (eval(condition)(ns, ...args)) {
+                await eval(step.action)(ns, ...args)
                 break
             }
         }
 
         await ns.sleep(100)
     }
-    
+
     pp(ns, `CORP START DONE, CHECK IT OUT!`, true)
 }
