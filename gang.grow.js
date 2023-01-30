@@ -277,6 +277,12 @@ export async function main(ns) {
             }
 
             const otherGang = otherGangInfo[gangName]
+
+            // Don't compare us against gangs that can't fight anymore.
+            if (otherGang.territory <= 0) {
+                return false
+            }
+            
             const chanceToWin = ns.gang.getChanceToWinClash(gangName)
             lowestChanceToWin = Math.min(lowestChanceToWin, chanceToWin)
         })
