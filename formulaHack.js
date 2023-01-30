@@ -292,6 +292,9 @@ function getGrowThreadsRequired(ns, target, startingMoney, desiredMoney, cores =
         growthFactorWanted = Number.MAX_SAFE_INTEGER - 1
     }
 
+    // We need at LEAST one grow thread.
+    growthFactorWanted = Math.max(growthFactorWanted, 1)
+
     return Math.ceil(ns.growthAnalyze(target.hostname, growthFactorWanted, cores))
 }
 
