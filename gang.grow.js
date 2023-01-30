@@ -319,13 +319,11 @@ export async function main(ns) {
             }
         } else {
             // We're winning easily. Work assignment is now as follows:
-            // 1. Territory
-            // 2-3. Rep
-            // 3-4. Money
+            // 1-2. Rep
+            // 4-5. Money
             // ?-? Negative rep fixing, if any needed
             // ?-12 Train
             let memberIndex = 0
-            assignToTask(ns, sortedMemberInfos[memberIndex++], territoryWarfare)
 
             let crimeForRep = getCrimeForRep(sortedMemberInfos[memberIndex], isHackGang)
             assignToTask(ns, sortedMemberInfos[memberIndex++], crimeForRep)
