@@ -17,6 +17,17 @@ const FACTION_STATS = [
 ]
 
 /** @param {import(".").NS } ns */
+function getAugData(ns, augName) {
+    return {
+        name: augName,
+        price: ns.singularity.getAugmentationPrice(augName),
+        repReq: ns.singularity.getAugmentationRepReq(augName),
+        stats: ns.singularity.getAugmentationStats(augName),
+        factions: []
+    }
+}
+
+/** @param {import(".").NS } ns */
 function getAugs(ns) {
 
     const currentAugs = ns.singularity.getOwnedAugmentations(true)
@@ -40,13 +51,7 @@ function getAugs(ns) {
             }
 
             if (!(aug in augs)) {
-                augs[aug] = {
-                    name: aug,
-                    price: ns.singularity.getAugmentationPrice(aug),
-                    repReq: ns.singularity.getAugmentationRepReq(aug),
-                    stats: ns.singularity.getAugmentationStats(aug),
-                    factions: []
-                }
+                augs[aug] = getAugData(ns, aug)
             }
 
             if (ns.singularity.getFactionRep(faction) > augs[aug].repReq) {
@@ -66,13 +71,19 @@ function getMostExpensiveAugs(augs) {
 }
 
 /** @param {import(".").NS } ns */
-function filterAugs(ns, augs, statsToFilter) {
+function filterAugs(ns, augs, statsToFilter, removeUnaffordable = true) {
     const availableMoney = ns.getPlayer().money
-    return augs.filter(aug => {
+    let filteredAugs = augs.filter(aug => {
         return statsToFilter.some(stat => aug.stats[stat] > 1)
-    }).filter(aug => {
-        return aug.price < availableMoney
     })
+
+    if (removeUnaffordable) {
+        filteredAugs = filteredAugs.filter(aug => {
+            return aug.price < availableMoney
+        })  
+    }
+
+    return filteredAugs
 }
 
 /** @param {import(".").NS } ns */
@@ -86,7 +97,6 @@ function getAugToPurchase(ns, desiredStats) {
 
 /** @param {import(".").NS } ns */
 async function purchaseStatAugs(ns, statsToPurchase) {
-    let augsPurchasedCount = 0
     let augToPurchase = getAugToPurchase(ns, statsToPurchase)
     while (augToPurchase) {
         const faction = augToPurchase.factions[0]
@@ -95,11 +105,9 @@ async function purchaseStatAugs(ns, statsToPurchase) {
         if (!ns.singularity.purchaseAugmentation(faction, name)) {
             throw new Error(`Failed to purchase ${name}`)
         }
-        augsPurchasedCount += 1
         await ns.sleep(100)
         augToPurchase = getAugToPurchase(ns, statsToPurchase)
     }
-    return augsPurchasedCount
 }
 
 /** @param {import(".").NS } ns */
@@ -171,7 +179,14 @@ async function upgradeHomeMachine(ns) {
 }
 
 /** @param {import(".").NS } ns */
-export async function ascend(ns, ... args) {
+function getPurchasedAugs(ns) {
+    // Number of augs we're purchasing is 'owned(true)' - 'owned(false)'
+    const installedAugs = ns.singularity.getOwnedAugmentations(false)
+    return ns.singularity.getOwnedAugmentations(true).filter(aug => !installedAugs.includes(aug))
+}
+
+/** @param {import(".").NS } ns */
+export async function ascend(ns, ...args) {
     const forceHack = args.includes(FORCE_HACK)
     const forceNumber = args.includes(FORCE_NUMBER)
 
@@ -183,18 +198,28 @@ export async function ascend(ns, ... args) {
     */
     await upgradeHomeMachine(ns)
 
-    const hackingAugCount = await purchaseStatAugs(ns, HACKING_STATS)
-    if (hackingAugCount < 4 && !forceHack) {
-        pp(ns, `Only able to purchase ${hackingAugCount} hacking augs, stopping script. Run with '${FORCE_HACK}' to bypass check.`, true)
+    await purchaseStatAugs(ns, HACKING_STATS)
+
+    const purchasedAugsTemp = getPurchasedAugs(ns)
+    pp(ns, `purchasedAugs: ${purchasedAugsTemp}`)
+
+    let purchasedAugs = purchasedAugsTemp
+        .map(augName => getAugData(ns, augName))
+
+    pp(ns, `purchasedAugs: ${JSON.stringify(purchasedAugs, null, 2)}`)
+
+    const purchasedHackAugs = filterAugs(ns, purchasedAugs, HACKING_STATS, false)
+    pp(ns, `purchasedHackAugs: ${JSON.stringify(purchasedHackAugs, null, 2)}`)
+    if (purchasedHackAugs.length < 4 && !forceHack) {
+        pp(ns, `Only able to purchase ${purchasedHackAugs.length} hacking augs, stopping script. Run with '${FORCE_HACK}' to bypass check.`, true)
         return false
     }
 
     await purchaseStatAugs(ns, FACTION_STATS)
-    
+
     purchaseNeuroFluxGovernors(ns)
 
-    // Number of augs we're purchasing is 'owned(true)' - 'owned(false)'
-    const numberOfAugsPending = ns.singularity.getOwnedAugmentations(true).length - ns.singularity.getOwnedAugmentations(false).length
+    const numberOfAugsPending = getPurchasedAugs(ns).length
     if (numberOfAugsPending < 10 && !forceNumber) {
         pp(ns, `Only ${numberOfAugsPending} augs are pending installation, stopping script. Run with '${FORCE_NUMBER} to bypass check.`, true)
         return false
