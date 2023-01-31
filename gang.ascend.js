@@ -1,6 +1,8 @@
 import { pp } from './common.js'
 import { getTrainingTaskName } from './gang.common'
 
+const MULTIPLIER_FACTOR = 1.5
+
 const ASCENSION_MULTIPLIERS = {
     hacking: [
         'hack',
@@ -25,7 +27,7 @@ function shouldAscend(ns, isHackGang, memberName) {
     const future = ns.gang.getAscensionResult(memberName)
 
     // Sometimes, the ascension result is undefined
-    return future !== undefined && multipliers.some(ability => future[ability] > 2)
+    return future !== undefined && multipliers.some(ability => future[ability] > MULTIPLIER_FACTOR)
 }
 
 /** @param {import(".").NS } ns */
