@@ -38,5 +38,5 @@ export async function main(ns) {
         await ns.sleep(15000) // 15 seconds
     }
 
-    pp(ns, `All ${getMaxGangSize} gang members recruited!`, true)
+    pp(ns, `All ${getMaxGangSize()} gang members recruited!`, true)
 }
