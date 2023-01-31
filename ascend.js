@@ -181,8 +181,28 @@ async function upgradeHomeMachine(ns) {
 /** @param {import(".").NS } ns */
 function getPurchasedAugs(ns) {
     // Number of augs we're purchasing is 'owned(true)' - 'owned(false)'
-    const installedAugs = ns.singularity.getOwnedAugmentations(false)
-    return ns.singularity.getOwnedAugmentations(true).filter(aug => !installedAugs.includes(aug))
+    const augsAlreadyInstalled = ns.singularity.getOwnedAugmentations(false)
+    const allAugs = ns.singularity.getOwnedAugmentations(true)
+    
+    // In possibly the weirdest way you could do this, NeuroFlux Governor is not listed with its level.
+    // Instead, it is listed multiple times -- as in, in looks like it repeats.
+    // This means that when we filter out previously-installed augs, ALL the NeuroFlux Governor are stripped out.
+    let newAugs = allAugs.filter(aug => !augsAlreadyInstalled.includes(aug))
+
+    const governorAug = 'NeuroFlux Governor'
+    if (allAugs.includes(governorAug)) {
+       let governorAugs = allAugs.filter(aug => aug == governorAug)
+
+       // The list of already-installed augs includes ONE entry for NeuroFlux Governor, regardless of level.
+       // Therefore, we should remove ONE item from governorAugs if we already have one installed.
+       if (augsAlreadyInstalled.includes(governorAug)) {
+        governorAugs.pop()
+       }
+
+       newAugs = [...newAugs, ...governorAugs]
+    }
+
+    return newAugs
 }
 
 /** @param {import(".").NS } ns */
