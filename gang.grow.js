@@ -83,7 +83,12 @@ function getSortedGangMemberInfos(ns, members, isHackGang) {
 function getTargetCrimeOrWantedRemoval(ns, targetCrime, wantedLevelRemovalCrime) {
     const gangInfo = ns.gang.getGangInformation()
     let crime = targetCrime
-    if (gangInfo.respectGainRate < (10000 * gangInfo.wantedLevelGainRate)) {
+    
+    // Generally, we should keep a low gain rate.
+    // However, occasionally weirdness pops up due to delaying the assignments.
+    // Because of that, we should also remove wanted level if the penalty ever gets above 5%.
+    // GangInfo.wantedPenalty is given as a percentage multiplier, so ".95" is a 5% penalty.
+    if (gangInfo.respectGainRate < (10000 * gangInfo.wantedLevelGainRate) || gangInfo.wantedPenalty < .95) {
         pp(ns, `Respect gain rate is ${gangInfo.respectGainRate}, wanted gain is ${gangInfo.wantedLevelGainRate}`)
         crime = wantedLevelRemovalCrime
     }
@@ -152,6 +157,7 @@ async function purchaseAllEquipment(ns, memberInfos, equipmentToPurchase) {
 export async function main(ns) {
 
     [
+        "gang.setMemberTask",
         "sleep",
     ].forEach(logName => ns.disableLog(logName))
 
@@ -203,30 +209,33 @@ export async function main(ns) {
     // Therefore, the fastest way to grow is to just straight up train everyone until they can do Terrorism,
     // and THEN go for rep.
 
-    while (true) {
-        const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
-
-        // Because we're getting the sorted member infos, the last person in the list is the weakest.
-        const weakestMemberInfo = sortedMemberInfos[sortedMemberInfos.length - 1]
-        const crimeForRep = getCrimeForRep(weakestMemberInfo, isHackGang)
-
-        pp(ns, `Crime for rep of weakest is ${crimeForRep}`)
-        if (crimeForRep === 'Terrorism') {
-            break
-        }
-
-        // Everyone should be training.
-        sortedMemberInfos.forEach(memberInfo => {
-            assignToTask(ns, memberInfo, trainingTask)
-        })
-
-        await ns.sleep(10 * 1000)
-        members = ns.gang.getMemberNames()
-    }
-
     // Max gang size takes too long to start territory warfare productively.
     const desiredGangCount = 10
     while (members.length < desiredGangCount) {
+
+        // Loop until the weakest person can do Terrorism.
+        // We do this inside the "desiredGangCount" loop so that when the script restarts,
+        // we don't require the latest recruit to be at Terrorism levels before continuing.
+        while (true) {
+            const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
+
+            // Because we're getting the sorted member infos, the last person in the list is the weakest.
+            const weakestMemberInfo = sortedMemberInfos[sortedMemberInfos.length - 1]
+            const crimeForRep = getCrimeForRep(weakestMemberInfo, isHackGang)
+
+            pp(ns, `Crime for rep of weakest is ${crimeForRep}`)
+            if (crimeForRep === 'Terrorism') {
+                break
+            }
+
+            // Everyone should be training.
+            sortedMemberInfos.forEach(memberInfo => {
+                assignToTask(ns, memberInfo, trainingTask)
+            })
+
+            await ns.sleep(10 * 1000)
+            members = ns.gang.getMemberNames()
+        }
 
         const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
 
@@ -266,6 +275,7 @@ export async function main(ns) {
     // Loop until we own everything
     let gangInfo = ns.gang.getGangInformation()
     while (gangInfo.territory < 1) {
+        members = ns.gang.getMemberNames()
 
         const otherGangInfo = ns.gang.getOtherGangInformation()
         let lowestChanceToWin = Number.MAX_SAFE_INTEGER
@@ -282,7 +292,7 @@ export async function main(ns) {
             if (otherGang.territory <= 0) {
                 return false
             }
-            
+
             const chanceToWin = ns.gang.getChanceToWinClash(gangName)
             lowestChanceToWin = Math.min(lowestChanceToWin, chanceToWin)
         })
@@ -292,6 +302,7 @@ export async function main(ns) {
 
         // If we have been fighting, people might have died. If so, we need to recruit back to full.
         if (sortedMemberInfos.length < getMaxGangSize() && !ns.scriptRunning('gang.recruit.js', 'home')) {
+            pp(ns, `We only have ${sortedMemberInfos.length} out of ${getMaxGangSize()} people, running recruit script.`)
             ns.exec('gang.recruit.js', 'home', 1)
         }
 
@@ -301,6 +312,7 @@ export async function main(ns) {
             // Top person does reputation gain, to ensure we don't lose all our rep.
             // Everyone else:
             // 1. If we're not at max gang size and they're in the top half of indexes: rep gain.
+            // 2. Else if we need wanted level removal: remove wanted level
             // 2. Else if under 2k stats: train
             // 3. Else: Territory Warfare
             let memberIndex = 0
@@ -310,14 +322,16 @@ export async function main(ns) {
             assignToTask(ns, sortedMemberInfos[memberIndex++], crimeForRep)
 
             for (let i = memberIndex; i < sortedMemberInfos.length; i++) {
+                await ns.sleep(DELAY_AFTER_ASSIGNMENT)
+
                 const memberInfo = sortedMemberInfos[i]
                 crimeForRep = getCrimeForRep(i, isHackGang)
 
                 let task = territoryWarfare
                 let isInTopHalf = i <= Math.floor(sortedMemberInfos.length / 2)
                 if (sortedMemberInfos.length < getMaxGangSize() && isInTopHalf) {
-                    task = crimeForRep
-                } else if (getLowestAscensionStat(memberInfo, isHackGang) < 2000) {
+                    task = getTargetCrimeOrWantedRemoval(ns, crimeForRep, wantedLevelRemovalCrime)
+                } else if (getLowestAscensionStat(memberInfo, isHackGang) < 1500) {
                     task = trainingTask
                 }
 
