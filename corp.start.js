@@ -3,8 +3,14 @@ import { settings, getItem, pp } from './common.js'
 const CORP_NAME = "MoneyMaker"
 const AGRICULTURE_NAME = "Ag"
 const TOBACCO_NAME = "Tob"
+const PRODUCT_DEVELOPMENT_CITY = "Aevum"
 
-let JOB_ASSIGNMENT_STAGE = 0
+let JOB_ASSIGNMENT_STAGE = {}
+
+/** @param {import(".").NS } ns */
+function getDivisions(ns) {
+    return ns.corporation.getCorporation().divisions
+}
 
 /** @param {import(".").NS } ns */
 function getCities(ns) {
@@ -59,29 +65,32 @@ function createAgriculture(ns) {
 }
 
 /** @param {import(".").NS } ns */
-function coffeeParty(ns, division) {
+function coffeeParty(ns, divisions = undefined) {
+    divisions = divisions || getDivisions(ns)
     let c = ns.corporation
     let anyNeeded = false
-    for (const city of getCities(ns)) {
+    for (const division of divisions) {
+        for (const city of getCities(ns)) {
 
-        // Getting the office fails if we haven't expanded to the division or city yet
-        let office
-        try {
-            office = c.getOffice(division, city)
-        } catch {
-            return true
-        }
-        
-        if (office.avgEne < 95) {
-            anyNeeded = true
-            pp(ns, `Buying coffee for ${division}.${city}`)
-            c.buyCoffee(division, city)
-        }
+            // Getting the office fails if we haven't expanded to the division or city yet
+            let office
+            try {
+                office = c.getOffice(division, city)
+            } catch {
+                return true
+            }
 
-        if (office.avgHap < 95 || office.avgMor < 95) {
-            anyNeeded = true
-            pp(ns, `Throwing party for ${division}.${city}`)
-            c.throwParty(division, city, 500_000)
+            if (office.avgEne < 95) {
+                anyNeeded = true
+                // pp(ns, `Buying coffee for ${division}.${city}`)
+                c.buyCoffee(division, city)
+            }
+
+            if (office.avgHap < 95 || office.avgMor < 95) {
+                anyNeeded = true
+                // pp(ns, `Throwing party for ${division}.${city}`)
+                c.throwParty(division, city, 500_000)
+            }
         }
     }
 
@@ -127,11 +136,7 @@ async function runNextStep(ns, steps) {
 
 /** @param {import(".").NS } ns */
 function divisionExists(ns, division) {
-    try {
-        return ns.corporation.getDivision(division) !== undefined
-    } catch {
-        return false
-    }
+    return getDivisions(ns).includes(division)
 }
 
 /** @param {import(".").NS } ns */
@@ -148,7 +153,7 @@ function expandToTobacco(ns) {
 /** @param {import(".").NS } ns */
 async function waitForMaxStats(ns, division) {
     pp(ns, 'Looping for max stats...')
-    while (coffeeParty(ns, division) && ns.corporation.getCorporation().funds > 0) {
+    while (coffeeParty(ns, [division]) && ns.corporation.getCorporation().funds > 0) {
         pp(ns, `... maximizing stats`)
         await ns.sleep(500)
     }
@@ -176,7 +181,7 @@ async function getInvestorOffer(ns, division, round) {
         await waitForCycle(ns)
 
         // Make sure our stats stay up
-        coffeeParty(ns, division)
+        coffeeParty(ns, [division])
     }
 
     pp(ns, `Accepting offer at ${ns.nFormat(c.getInvestmentOffer().funds, "0.00a")}`)
@@ -229,11 +234,9 @@ function needAdvert(ns, division, level) {
 async function buyAdvert(ns, division, level) {
     let c = ns.corporation
     let currentCount = c.getHireAdVertCount(division)
-    while (currentCount < level) {
-        currentCount++
+    if (currentCount < level) {
         pp(ns, `Buying AdVert in ${division}, level ${currentCount}`)
         c.hireAdVert(division)
-        await ns.sleep(0)
     }
 }
 
@@ -290,16 +293,24 @@ function getJobTitles() {
     ]
 }
 
+function getDesiredJobNumber(city, job, desiredJobs, desiredJobsCityOverride = {}) {
+    // If the city is present in the list of overrides, use that.
+    // Do NOT default to the listing from desiredJobs if the job is not present in that city -- treat it as 0.
+    if (desiredJobsCityOverride[city]) {
+        return desiredJobsCityOverride[city][job] || 0
+    }
 
+    return desiredJobs[job] || 0
+}
 
 /** @param {import(".").NS } ns */
-function needToHireOrAssign(ns, division, stage, desiredJobs) {
+function needToHireOrAssign(ns, division, stage, desiredJobs, desiredJobsCityOverride = {}) {
 
     // Skip earlier stages
-    if (stage < JOB_ASSIGNMENT_STAGE) {
+    if (stage < (JOB_ASSIGNMENT_STAGE[division] || 0)) {
         return
     }
-    JOB_ASSIGNMENT_STAGE = stage
+    JOB_ASSIGNMENT_STAGE[division] = stage
 
     for (const city of getCities(ns)) {
         const office = ns.corporation.getOffice(division, city)
@@ -307,7 +318,7 @@ function needToHireOrAssign(ns, division, stage, desiredJobs) {
 
             // != is correct, because we might have more people assigned than we should.
             const current = office.employeeJobs[job]
-            const desired = desiredJobs[job] || 0
+            const desired = getDesiredJobNumber(city, job, desiredJobs, desiredJobsCityOverride)
             if (current != desired) {
                 pp(ns, `Need to change assignment in ${division}.${city}, ${job} has ${current}/${desired}`)
                 return true
@@ -319,18 +330,32 @@ function needToHireOrAssign(ns, division, stage, desiredJobs) {
 }
 
 /** @param {import(".").NS } ns */
-async function hireOrAssign(ns, division, stage, desiredJobs) {
+async function fillOffice(ns, division, city) {
+    let anyHired = false
+    while (ns.corporation.hireEmployee(division, city)) {
+        anyHired = true
+        pp(ns, `Hiring in ${division}.${city}`)
+        await ns.sleep(0)
+    }
+    return anyHired
+}
+
+/** @param {import(".").NS } ns */
+async function hireOrAssign(ns, division, stage, desiredJobs, desiredJobsCityOverride = {}) {
     // Skip earlier stages
-    if (stage < JOB_ASSIGNMENT_STAGE) {
+    if (stage < (JOB_ASSIGNMENT_STAGE[division] || 0)) {
         return
     }
-    JOB_ASSIGNMENT_STAGE = stage
+    JOB_ASSIGNMENT_STAGE[division] = stage
 
     let anyHired = false
     for (const city of getCities(ns)) {
         const office = ns.corporation.getOffice(division, city)
 
-        const totalJobs = Object.values(desiredJobs).reduce((partialSum, v) => partialSum + v)
+        let totalJobs = 0
+        for (const job of getJobTitles()) {
+            totalJobs += getDesiredJobNumber(city, job, desiredJobs, desiredJobsCityOverride)
+        }
 
         // Increase office size if necessary
         const reqsToOpen = totalJobs - office.size
@@ -340,11 +365,7 @@ async function hireOrAssign(ns, division, stage, desiredJobs) {
         }
 
         // Hire people if necessary
-        while (ns.corporation.hireEmployee(division, city)) {
-            anyHired = true
-            pp(ns, `Hiring in ${division}.${city}`)
-            await ns.sleep(0)
-        }
+        anyHired = await fillOffice(ns, division, city)
 
         // Assign people to the appropriate job
         for (const job of getJobTitles()) {
@@ -358,6 +379,55 @@ async function hireOrAssign(ns, division, stage, desiredJobs) {
 
     if (anyHired) {
         await waitForMaxStats(ns, division)
+    }
+}
+
+/** @param {import(".").NS } ns */
+async function fillPositionsForTobacco(ns) {
+    for (const city of getCities(ns)) {
+        const office = ns.corporation.getOffice(TOBACCO_NAME, city)
+
+        // Hire people if necessary
+        await fillOffice(ns, TOBACCO_NAME, city)
+
+        /*
+        Jobs assigned to research cities:
+        Operations: 1
+        Engineer: 1
+        Business: 1
+        Management: 1
+        "Research & Development": N
+        
+        Jobs assigned to product development city:
+        Operations: x
+        Engineer: x
+        Business: x/2
+        Management: x
+        */
+        if (city != PRODUCT_DEVELOPMENT_CITY) {
+            // The initial hiring allocation was set before we called this function,
+            // so we don't have to worry about that.
+            ns.corporation.setAutoJobAssignment(TOBACCO_NAME, city, "Research & Development", office.size - 4)
+        } else {
+            ns.corporation.setAutoJobAssignment(TOBACCO_NAME, city, "Operations", 0)
+            ns.corporation.setAutoJobAssignment(TOBACCO_NAME, city, "Research & Development", 0)
+
+            let remainingJobs = office.size
+
+            let businessJobs = Math.floor(office.size / 7)
+            ns.corporation.setAutoJobAssignment(TOBACCO_NAME, city, "Business", businessJobs)
+            remainingJobs -= businessJobs
+
+            let managementJobs = Math.floor(remainingJobs / 3)
+            ns.corporation.setAutoJobAssignment(TOBACCO_NAME, city, "Management", managementJobs)
+            remainingJobs -= managementJobs
+
+            let engineerJobs = Math.floor(remainingJobs / 2)
+            ns.corporation.setAutoJobAssignment(TOBACCO_NAME, city, "Engineer", engineerJobs)
+            remainingJobs -= engineerJobs
+
+            ns.corporation.setAutoJobAssignment(TOBACCO_NAME, city, "Operations", remainingJobs)
+        }
     }
 }
 
@@ -388,9 +458,10 @@ async function sellMaterial(ns, division, sales) {
 /** @param {import(".").NS } ns */
 function needUpgrades(ns, upgrades) {
     for (const upgrade of Object.keys(upgrades)) {
-        pp(ns, `Checking upgrade ${upgrade}`)
         const desiredLevel = upgrades[upgrade]
+        const currentLevel = ns.corporation.getUpgradeLevel(upgrade)
         if (ns.corporation.getUpgradeLevel(upgrade) < desiredLevel) {
+            pp(ns, `${upgrade} at level ${currentLevel} / ${desiredLevel}`)
             return true
         }
     }
@@ -403,9 +474,9 @@ async function buyUpgrades(ns, upgrades) {
     for (const upgrade of Object.keys(upgrades)) {
         const desiredLevel = upgrades[upgrade]
         let remaining = desiredLevel - c.getUpgradeLevel(upgrade)
-        while (remaining > 0) {
+        if (remaining > 0) {
             c.levelUpgrade(upgrade)
-            remaining--
+            pp(ns, `${upgrade} leveled up, ${remaining} levels remaining`)
         }
     }
 }
@@ -490,6 +561,155 @@ async function waitForCycle(ns) {
 }
 
 /** @param {import(".").NS } ns */
+async function executeSteps(ns, steps) {
+    for (const step of steps) {
+        const args = step.args || []
+        const condition = step.condition
+        // pp(ns, `Condition: ${condition}, action: ${step.action}, args: ${JSON.stringify(step.args, null, 2)}`)
+        if (eval(condition)(ns, ...args)) {
+            await eval(step.action)(ns, ...args)
+            break
+        }
+    }
+}
+
+/** @param {import(".").NS } ns */
+function getProductsNameAndVersion(ns, division) {
+    const products = ns.corporation.getDivision(division).products || []
+    return products
+        .map(productName => {
+            return {
+                name: productName,
+                version: parseInt(productName.substring(1))
+            }
+        })
+        .sort((a, b) => a.version - b.version)
+}
+
+/** @param {import(".").NS } ns */
+function allProductSlotsFull(ns, division) {
+    let maxNumProducts = 3
+
+    if (ns.corporation.hasResearched(division, "uPgrade: Capacity.I")) {
+        maxNumProducts++
+    }
+
+    if (ns.corporation.hasResearched(division, "uPgrade: Capacity.II")) {
+        maxNumProducts++
+    }
+
+    // If we still have slots available, we're not full.
+    if (getProductsNameAndVersion(ns, division).length != maxNumProducts) {
+        return false
+    }
+
+    // All slots are in use, so if we're not developing a product, we're full.
+    return notDevelopingProduct(ns, division)
+}
+
+/** @param {import(".").NS } ns */
+async function deleteEarliestProduct(ns, division) {
+    const earliestProductName = getProductsNameAndVersion(ns, division)[0].name
+    pp(ns, `Deleting ${division} product ${earliestProductName}`)
+    ns.corporation.discontinueProduct(division, earliestProductName)
+}
+
+/** @param {import(".").NS } ns */
+function notDevelopingProduct(ns, division) {
+    const products = getProductsNameAndVersion(ns, division)
+
+    if (products.length == 0) {
+        return true
+    }
+
+    for (const product of products) {
+        if (ns.corporation.getProduct(division, product.name).developmentProgress < 100) {
+            return false
+        }
+    }
+
+    return true
+}
+
+/** @param {import(".").NS } ns */
+async function developProduct(ns, division) {
+    const currentProducts = getProductsNameAndVersion(ns, division)
+    const lastVersionNumber = currentProducts.slice(-1)[0].version || 0
+    const nextVersionNumber = lastVersionNumber + 1
+
+    const investmentCost = 1e9 // 1 billion
+    if (ns.corporation.getCorporation().funds > (2 * investmentCost)) {
+        const newProductName = `v${nextVersionNumber}`
+        pp(ns, `Making ${division} product ${newProductName}`)
+        ns.corporation.makeProduct(division, PRODUCT_DEVELOPMENT_CITY, `v${nextVersionNumber}`, 1e9, 1e9)
+    } else {
+        pp(ns, `Insufficient funds to make ${division} product ${newProductName}`)
+    }
+}
+
+/** @param {import(".").NS } ns */
+function notSellingAllProducts(ns, division) {
+    for (const productNameAndVersion of getProductsNameAndVersion(ns, division)) {
+        const product = ns.corporation.getProduct(division, productNameAndVersion.name)
+        if (product.sCost == 0) {
+            return true
+        }
+    }
+
+    return false
+}
+
+/** @param {import(".").NS } ns */
+async function sellAllProducts(ns, division) {
+    for (const productNameAndVersion of getProductsNameAndVersion(ns, division)) {
+        const product = ns.corporation.getProduct(division, productNameAndVersion.name)
+        if (product.sCost == 0) {
+            ns.corporation.sellProduct(division, PRODUCT_DEVELOPMENT_CITY, productNameAndVersion.name, "MAX", "MP*1", true)
+        }
+    }
+}
+
+/** @param {import(".").NS } ns */
+function adjustProductPrice(ns, division, product) {
+    // pp(ns, `Adjusting product prices in ${division}`)
+    // for (const productNameAndVersion of getProductsNameAndVersion(ns, division)) {
+    //     const product = ns.corporation.getProduct(division, productNameAndVersion.name)
+    // }
+}
+
+/** @param {import(".").NS } ns */
+async function adjustProductPrices(ns, division) {
+    const productNamesAndVersions = getProductsNameAndVersion(ns, division)
+    for (let i = 0; i < productNamesAndVersions.length; i++) {
+        const productNameAndVersion = productNamesAndVersions[i]
+        const product = ns.corporation.getProduct(division, productNameAndVersion.name)
+        if (!product.sCost) {
+
+            // Default to whatever we were selling the previous one at.
+            // While this won't be accurate if we've spent research, it'll generally be accurate.
+            // This lets us manually tune things sometimes without losing too much efficiency.
+            let sellPrice = "MP*1"
+            if (i > 0) {
+                let previousProduct = ns.corporation.getProduct(division, productNamesAndVersions[i-1].name)
+                pp(ns, `Previous product: ${previousProduct.name}, sCost: ${previousProduct.sCost}`)
+                sellPrice = previousProduct.sCost
+            }
+
+            pp(ns, `Selling ${product.name} for MAX at ${sellPrice}`)
+            ns.corporation.sellProduct(division, PRODUCT_DEVELOPMENT_CITY, productNameAndVersion.name, "MAX", sellPrice, true)
+        }
+
+        // If we have Market-TA.II, use that.
+        // Otherwise, adjust the price manually.
+        if (ns.corporation.hasResearched(TOBACCO_NAME, "Market-TA.II")) {
+            ns.corporation.setProductMarketTA2(division, product.name, true)
+        } else {
+            adjustProductPrice(ns, division, product)
+        }
+    }
+}
+
+/** @param {import(".").NS } ns */
 export async function main(ns) {
     ns.disableLog("ALL")
 
@@ -520,7 +740,7 @@ export async function main(ns) {
 
     pp(ns, "Got to steps!")
 
-    const steps = [
+    const stepsFromBeginningToTobacco = [
         {
             condition: needUnlockUpgrade,
             action: unlockUpgrade,
@@ -660,24 +880,97 @@ export async function main(ns) {
         {
             condition: tobaccoNotAvailable,
             action: expandToTobacco,
-        }
+        },
     ]
 
     while (tobaccoNotAvailable(ns)) {
-        coffeeParty(ns, AGRICULTURE_NAME)
-
-        for (const step of steps) {
-            const args = step.args || []
-            const condition = step.condition
-            // pp(ns, `Condition: ${condition}, action: ${step.action}, args: ${JSON.stringify(step.args, null, 2)}`)
-            if (eval(condition)(ns, ...args)) {
-                await eval(step.action)(ns, ...args)
-                break
-            }
-        }
-
+        coffeeParty(ns)
+        await executeSteps(ns, stepsFromBeginningToTobacco)
         await ns.sleep(100)
     }
 
-    pp(ns, `CORP START DONE, CHECK IT OUT!`, true)
+    // Tobacco is available!
+    // const tobaccoStartSteps = [
+    //     {
+    //         condition: notInAllCities,
+    //         action: expandToAllCities,
+    //         args: [TOBACCO_NAME]
+    //     },
+    //     {
+    //         condition: needToHireOrAssign,
+    //         action: hireOrAssign,
+    //         args: [TOBACCO_NAME, 1,
+    //             {
+    //                 Operations: 1,
+    //                 Engineer: 1,
+    //                 Business: 1,
+    //                 Management: 1,
+    //                 "Research & Development": 5,
+    //             },
+    //             {
+    //                 Aevum: {
+    //                     Operations: 8,
+    //                     Engineer: 9,
+    //                     Business: 5,
+    //                     Management: 8,
+    //                 }
+    //             }],
+    //     },
+    //     {
+    //         condition: allProductSlotsFull,
+    //         action: deleteEarliestProduct,
+    //         args: [TOBACCO_NAME]
+    //     },
+    //     {
+    //         condition: notDevelopingProduct,
+    //         action: developProduct,
+    //         args: [TOBACCO_NAME]
+    //     },
+    //     {
+    //         condition: notSellingAllProducts,
+    //         action: sellAllProducts,
+    //         args: [TOBACCO_NAME]
+    //     },
+    // ]
+
+    if (notInAllCities(ns, TOBACCO_NAME)) {
+        await expandToAllCities(ns, TOBACCO_NAME)
+    }
+
+    const startingTobaccoDefaultJobs = {
+        Operations: 1,
+        Engineer: 1,
+        Business: 1,
+        Management: 1,
+        "Research & Development": 5,
+    }
+    const startingTobaccoOverrideJobs = {
+        Aevum: {
+            Operations: 8,
+            Engineer: 9,
+            Business: 5,
+            Management: 8,
+        }
+    }
+    if (needToHireOrAssign(ns, TOBACCO_NAME, 1, startingTobaccoDefaultJobs, startingTobaccoOverrideJobs)) {
+        await hireOrAssign(ns, TOBACCO_NAME, 1, startingTobaccoDefaultJobs, startingTobaccoOverrideJobs)
+    }
+
+    while (true) {
+        coffeeParty(ns)
+
+        if (allProductSlotsFull(ns, TOBACCO_NAME)) {
+            await deleteEarliestProduct(ns, TOBACCO_NAME)
+        }
+
+        if (notDevelopingProduct(ns, TOBACCO_NAME)) {
+            await developProduct(ns, TOBACCO_NAME)
+        }
+
+        await adjustProductPrices(ns, TOBACCO_NAME)
+
+        await fillPositionsForTobacco(ns)
+
+        await ns.sleep(100)
+    }
 }
