@@ -2,6 +2,9 @@ import { getFactions, pp } from "./common"
 
 /** @param {import(".").NS } ns */
 export async function main(ns) {
+    [
+        "sleep",
+    ].forEach(logName => ns.disableLog(logName))
 
     const faction = ns.args[0]
     if (!getFactions().includes(faction)) {
@@ -17,8 +20,8 @@ export async function main(ns) {
     const favorToDonate = ns.getFavorToDonate()
     const currentFavor = ns.singularity.getFactionFavor(faction)
     let favorGain = ns.singularity.getFactionFavorGain(faction)
-    pp(ns, `We need ${favorToDonate} favor to donate, we currently have ${currentFavor} and will gain ${favorGain}`, true)
     while ((currentFavor + favorGain) < favorToDonate) {
+        pp(ns, `Need ${favorToDonate} favor to donate, currently have ${currentFavor}, will gain ${favorGain}`)
         await ns.sleep(10 * 1000)
         favorGain = ns.singularity.getFactionFavorGain(faction)
     }
