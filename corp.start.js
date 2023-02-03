@@ -634,7 +634,16 @@ function notDevelopingProduct(ns, division) {
 /** @param {import(".").NS } ns */
 async function developProduct(ns, division) {
     const currentProducts = getProductsNameAndVersion(ns, division)
-    const lastVersionNumber = currentProducts.slice(-1)[0].version || 0
+
+    let lastVersionNumber = 0
+    const latestProducts = currentProducts.slice(-1)
+    if (latestProducts) {
+        const latestProduct = latestProducts[0]
+        if (latestProduct) {
+            lastVersionNumber = latestProduct.version
+        }
+    }
+
     const nextVersionNumber = lastVersionNumber + 1
 
     const investmentCost = 1e9 // 1 billion
