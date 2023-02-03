@@ -2,7 +2,7 @@ import { pp } from './common.js'
 import { getMaxGangSize, getTrainingTaskName } from './gang.common'
 
 const DELAY_AFTER_ASSIGNMENT = 500
-const COMBAT_WIN_THRESHOLD = .65
+const COMBAT_WIN_THRESHOLD = .60
 const COMBAT_EASY_THRESHOLD = .9
 
 const ASCENSION_MULTIPLIERS = {
@@ -213,11 +213,11 @@ export async function main(ns) {
     const desiredGangCount = 10
     while (members.length < desiredGangCount) {
 
-        // Loop until the weakest person can do Terrorism.
+        // Loop until the weakest person (of the top 6) can do Terrorism.
         // We do this inside the "desiredGangCount" loop so that when the script restarts,
         // we don't require the latest recruit to be at Terrorism levels before continuing.
         while (true) {
-            const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang)
+            const sortedMemberInfos = getSortedGangMemberInfos(ns, members, isHackGang).slice(0, 6)
 
             // Because we're getting the sorted member infos, the last person in the list is the weakest.
             const weakestMemberInfo = sortedMemberInfos[sortedMemberInfos.length - 1]
@@ -308,14 +308,15 @@ export async function main(ns) {
 
         if (lowestChanceToWin < COMBAT_EASY_THRESHOLD) {
             // We need lots of people in territory warfare.
-            // Top person does Territory Warfare, to start our numbers early.
-            // Top person does reputation gain, to ensure we don't lose all our rep.
+            // Top 2 people do Territory Warfare, to start our numbers early.
+            // Next top person does reputation gain, to ensure we don't lose all our rep.
             // Everyone else:
             // 1. If we're not at max gang size and they're in the top half of indexes: rep gain.
             // 2. Else if we need wanted level removal: remove wanted level
-            // 2. Else if under 2k stats: train
+            // 2. Else if under 1500 stats: train
             // 3. Else: Territory Warfare
             let memberIndex = 0
+            assignToTask(ns, sortedMemberInfos[memberIndex++], territoryWarfare)
             assignToTask(ns, sortedMemberInfos[memberIndex++], territoryWarfare)
 
             let crimeForRep = getCrimeForRep(memberIndex, isHackGang)
