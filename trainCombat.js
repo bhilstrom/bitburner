@@ -3,7 +3,7 @@ import { pp } from './common.js'
 /** @param {import(".").NS } ns */
 export async function main(ns) {
 
-    const statResult = ns.args[0]
+    const statResult = ns.args[0] || 100
 
     const combatStats = [
         'strength',
@@ -12,9 +12,7 @@ export async function main(ns) {
         'agility',
     ]
 
-    for (let i = 0; i < combatStats.length; i++) {
-        const combatStat = combatStats[i]
-
+    for (const combatStat of combatStats) {
         if (ns.getPlayer().skills[combatStat] >= statResult) {
             pp(ns, `Stat ${combatStat} already above ${statResult}, no change.`, true)
         } else {
