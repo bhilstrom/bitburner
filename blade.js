@@ -175,7 +175,6 @@ async function getTarget(ns) {
             type: "Operation",
             names: [
                 "Assassination",
-                "Stealth Retirement Operation",
             ]
         },
         {
@@ -186,14 +185,24 @@ async function getTarget(ns) {
             ]
         },
     ]
-        .flatMap(option => {
-            return option.names.map(name => {
-                return {
-                    type: option.type,
-                    name: name,
-                }
-            })
+
+    // If we have a high enough population, allow certain operations
+    const targetCityPop = getTargetCity(ns).pop
+    if (targetCityPop > 1_500_000_000) {
+        options[0].names.push("Sting Operation")
+    }
+    if (targetCityPop > 2_000_000_000) {
+        options[0].names.push("Stealth Retirement Operation")
+    }
+
+    options = options.flatMap(option => {
+        return option.names.map(name => {
+            return {
+                type: option.type,
+                name: name,
+            }
         })
+    })
 
     for (const option of options) {
         option.level = await modifyLevelToHighestAcceptable(ns, option.type, option.name)
@@ -259,29 +268,71 @@ async function getTarget(ns) {
 }
 
 /** @param {import(".").NS } ns */
+function getCityNumbers(ns, cityName) {
+    const blade = ns.bladeburner
+    return {
+        name: cityName,
+        pop: blade.getCityEstimatedPopulation(cityName),
+        chaos: blade.getCityChaos(cityName),
+    }
+}
+
+function isPopulationHighEnough(cityNumbers) {
+    // 1bn is needed, but we want a little buffer
+    return cityNumbers.pop > 1_100_000_000
+}
+
+function isChaosLowEnough(cityNumbers) {
+    return cityNumbers.chaos < 50
+}
+
+/** @param {import(".").NS } ns */
+function getTargetCity(ns) {
+    const blade = ns.bladeburner
+
+    const currentCity = getCityNumbers(ns, blade.getCity())
+    if (isPopulationHighEnough(currentCity) && isChaosLowEnough(currentCity)) {
+        return currentCity
+    }
+
+    const cities = getCities(ns)
+        .map(cityName => getCityNumbers(ns, cityName))
+        .sort((a, b) => b.pop - a.pop)
+
+    let targetCity = cities[0] // Default to the city with the highest population
+
+    const citiesWithPopAndChaos = cities
+        .filter(isPopulationHighEnough)
+        .filter(isChaosLowEnough)
+        .sort((a, b) => {
+            // Sort by max population, then min chaos
+            const popDiff = b.pop - a.pop
+            return popDiff == 0 ? popDiff : a.chaos - b.chaos
+        })
+
+    if (citiesWithPopAndChaos.length) {
+        targetCity = citiesWithPopAndChaos[0]
+    }
+
+    return targetCity
+}
+
+/** @param {import(".").NS } ns */
 function maybeMoveCity(ns) {
     const blade = ns.bladeburner
 
-    const currentCity = blade.getCity()
-    if (blade.getCityEstimatedPopulation(currentCity) > 1_000_000_000) {
+    const currentCity = getCityNumbers(ns, blade.getCity())
+    if (isPopulationHighEnough(currentCity) && isChaosLowEnough(currentCity)) {
         return
     }
 
-    const sortedCities = getCities(ns).map(cityName => {
-        return {
-            name: cityName,
-            pop: blade.getCityEstimatedPopulation(cityName),
-        }
-    })
-        .sort((a, b) => b.pop - a.pop)
-
-    const highestPopCity = sortedCities[0].name
-    if (highestPopCity == currentCity) {
+    const targetCity = getTargetCity(ns)
+    if (targetCity.name == currentCity.name) {
         return
     }
 
-    pp(ns, `Moving to ${highestPopCity}`)
-    blade.switchCity(highestPopCity)
+    pp(ns, `Moving to ${targetCity.name}`)
+    blade.switchCity(targetCity.name)
 }
 
 /** @param {import(".").NS } ns */
@@ -325,6 +376,8 @@ export async function main(ns) {
     turnOffAutoLevel(ns)
 
     while (true) {
+
+        maybeMoveCity(ns)
 
         let action = await getTarget(ns)
 
