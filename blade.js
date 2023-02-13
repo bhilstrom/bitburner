@@ -68,18 +68,13 @@ async function spendSkillPoints(ns) {
 }
 
 /**
- * @param {import(".").NS } ns
- * @param {string} type
- * @param {string} name
+ * @param {minChance} number
+ * @param {maxChance} number
  * @returns {"VIABLE" | "NON-VIABLE" | "UNKNOWN"}
  */
-function isViableTarget(ns, type, name) {
-    const blade = ns.bladeburner
+function getChanceSpreadViability(minChance, maxChance) {
 
-    const THRESHOLD = 0.66
-
-    const [minChance, maxChance] = blade.getActionEstimatedSuccessChance(type, name)
-
+    const THRESHOLD = 0.75
     if (minChance > THRESHOLD) {
         return "VIABLE"
     }
@@ -89,13 +84,14 @@ function isViableTarget(ns, type, name) {
     }
 
     const spread = maxChance - minChance
-    if (spread > 0.25) {
-        pp(ns, `${type}.${name} needs more info -- spread of ${spread} is too wide`)
+    const spreadThreshold = 0.25
+    if (spread > spreadThreshold) {
+        // pp(ns, `${type}.${name} needs more info -- spread of ${spread} is too wide`)
         return "UNKNOWN"
     }
 
-    if (minChance < 0.5) {
-        pp(ns, `${type}.${name} needs more info -- min chance too low`)
+    if (minChance < (THRESHOLD - (spreadThreshold / 2) - .025)) {
+        // pp(ns, `${type}.${name} needs more info -- min chance too low`)
         return "UNKNOWN"
     }
 
@@ -107,8 +103,48 @@ function isViableTarget(ns, type, name) {
     return "VIABLE"
 }
 
+/**
+ * @param {import(".").NS } ns
+ * @param {string} type
+ * @param {string} name
+ * @returns {Promise<number | "UNKNOWN">}
+ */
+async function modifyLevelToHighestAcceptable(ns, type, name) {
+    const blade = ns.bladeburner
+
+    for (let level = blade.getActionMaxLevel(type, name); level > 0; level--) {
+        blade.setActionLevel(type, name, level)
+        const [minChance, maxChance] = blade.getActionEstimatedSuccessChance(type, name)
+        const viability = getChanceSpreadViability(minChance, maxChance)
+        if (viability == "UNKNOWN") {
+            return "UNKNOWN"
+        }
+
+        if (viability == "VIABLE") {
+            return level
+        }
+
+        await ns.sleep(0)
+    }
+
+    return 0
+}
+
+/**
+ * @param {import(".").NS } ns
+ * @param {string} type
+ * @param {string} name
+ * @returns {"VIABLE" | "NON-VIABLE" | "UNKNOWN"}
+ */
+function isViableTarget(ns, type, name) {
+    const blade = ns.bladeburner
+
+    const [minChance, maxChance] = blade.getActionEstimatedSuccessChance(type, name)
+    return getChanceSpreadViability(minChance, maxChance)
+}
+
 /** @param {import(".").NS } ns */
-function getTarget(ns) {
+async function getTarget(ns) {
     const blade = ns.bladeburner
 
     const staminaPercentage = getStaminaPercentage(ns)
@@ -134,16 +170,12 @@ function getTarget(ns) {
         }
     }
 
-    let needMoreInfo = false
-
     let options = [
         {
             type: "Operation",
             names: [
                 "Assassination",
                 "Stealth Retirement Operation",
-                "Undercover Operation",
-                "Investigation",
             ]
         },
         {
@@ -162,17 +194,21 @@ function getTarget(ns) {
                 }
             })
         })
-        .filter(option => {
-            const isViable = isViableTarget(ns, option.type, option.name)
-            if (isViable == "VIABLE") {
-                return true
-            }
 
-            if (isViable == "UNKNOWN") {
-                needMoreInfo = true
-            }
+    for (const option of options) {
+        option.level = await modifyLevelToHighestAcceptable(ns, option.type, option.name)
+    }
+
+    let needMoreInfo = false
+    options = options.filter(option => {
+        if (option.level == "UNKNOWN") {
+            pp(ns, `${option.type}.${option.name} needs more info`)
+            needMoreInfo = true
             return false
-        })
+        }
+
+        return option.level > 0
+    })
 
     if (needMoreInfo) {
         // Override our available options with info-generating options.
@@ -193,7 +229,13 @@ function getTarget(ns) {
             .filter(option => isViableTarget(ns, option.type, option.name) == "VIABLE")
     }
 
-    options.sort((a, b) => blade.getActionRepGain(b.type, b.name) - blade.getActionRepGain(a.type, a.name))
+    for (const option of options) {
+        option.rep = blade.getActionRepGain(option.type, option.name)
+        option.time = blade.getActionTime(option.type, option.name)
+        option.repRatio = option.rep / option.time
+    }
+
+    options.sort((a, b) => b.repRatio - a.repRatio)
 
     const option = options[0]
     if (!option) {
@@ -243,6 +285,32 @@ function maybeMoveCity(ns) {
 }
 
 /** @param {import(".").NS } ns */
+function turnOffAutoLevel(ns) {
+    pp(ns, `Turning off AutoLevel for all Contracts and Operations`)
+    const blade = ns.bladeburner
+
+    const contracts = blade.getContractNames()
+        .map(name => {
+            return {
+                type: "Contract",
+                name: name,
+            }
+        })
+
+    const operations = blade.getOperationNames()
+        .map(name => {
+            return {
+                type: "Operation",
+                name: name,
+            }
+        })
+
+    for (const option of contracts.concat(operations)) {
+        blade.setActionAutolevel(option.type, option.name, false)
+    }
+}
+
+/** @param {import(".").NS } ns */
 export async function main(ns) {
 
     [
@@ -254,9 +322,11 @@ export async function main(ns) {
         await join(ns)
     }
 
+    turnOffAutoLevel(ns)
+
     while (true) {
 
-        let action = getTarget(ns)
+        let action = await getTarget(ns)
 
         await runAction(ns, action.type, action.name)
 
