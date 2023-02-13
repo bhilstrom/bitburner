@@ -45,12 +45,15 @@ async function spendSkillPoints(ns) {
     }
 
     const desiredSkills = [
-        "Blade's Intuition",
+        "Digital Observer",
         "Short-Circuit",
-        "Tracer",
         "Reaper",
         "Evasive System",
-        "Hyperdrive"
+        "Hyperdrive",
+        "Blade's Intuition",
+        "Tracer",
+        "Overclock",
+        "Cloak",
     ]
 
     let available = blade.getSkillPoints()
@@ -139,6 +142,8 @@ function getTarget(ns) {
             names: [
                 "Assassination",
                 "Stealth Retirement Operation",
+                "Undercover Operation",
+                "Investigation",
             ]
         },
         {
