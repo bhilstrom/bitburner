@@ -1,5 +1,7 @@
 import { pp, runAndWaitFor, msToS, getCities } from './common.js'
 
+const POP_ESTIMATE_THRESHOLD = 1.5e9 // 1.5b
+
 async function join(ns) {
     await runAndWaitFor(ns, 'trainCombat.js')
 
@@ -23,7 +25,9 @@ async function runAction(ns, type, name) {
     const currentAction = blade.getCurrentAction()
     if (currentAction.type == type && currentAction.name == name) {
         const fullTime = blade.getActionTime(type, name)
-        time = fullTime - blade.getActionCurrentTime()
+
+        // Sometimes the current action hasn't updated even after completing, in which case we get negative time
+        time = Math.max(fullTime - blade.getActionCurrentTime(), 0)
         pp(ns, `${type}.${name} is already running, ${msToS(time)} seconds remaining.`)
     } else {
         time = blade.getActionTime(type, name)
@@ -40,29 +44,51 @@ async function runAction(ns, type, name) {
 async function spendSkillPoints(ns) {
     const blade = ns.bladeburner
 
-    if (blade.getSkillPoints() <= 0) {
+    let available = blade.getSkillPoints()
+    if (available <= 0) {
         return
     }
 
-    const desiredSkills = [
-        "Digital Observer",
-        "Short-Circuit",
-        "Reaper",
-        "Evasive System",
-        "Hyperdrive",
-        "Blade's Intuition",
-        "Tracer",
-        "Overclock",
-        "Cloak",
-    ]
+    const desiredSkills = {
+        "Overclock": {
+            max: 90,
+        },
+        "Hyperdrive": {},
+        "Digital Observer": {},
+        "Short-Circuit": {},
+        "Reaper": {},
+        "Evasive System": {},
+        "Blade's Intuition": {},
+        "Tracer": {
+            max: 10,
+        },
+        "Cloak": {},
+    }
 
-    let available = blade.getSkillPoints()
-    for (const skillName of desiredSkills) {
-        while (blade.getSkillUpgradeCost(skillName) < available) {
-            pp(ns, `Upgrading ${skillName}`)
-            blade.upgradeSkill(skillName)
+    while (available > 0) {
+        let anyPurchased = false
+        for (const [name, data] of Object.entries(desiredSkills)) {
+            if (data.max && !data.level) {
+                data.level = blade.getSkillLevel(name)
+            }
+
+            if (data.max && data.max <= data.level) {
+                continue
+            }
+
+            if (blade.getSkillUpgradeCost(name) > available) {
+                continue
+            }
+
+            pp(ns, `Upgrading ${name}`)
+            blade.upgradeSkill(name)
             available = blade.getSkillPoints()
+            anyPurchased = true
             await ns.sleep(0)
+        }
+
+        if (!anyPurchased) {
+            break
         }
     }
 }
@@ -72,9 +98,9 @@ async function spendSkillPoints(ns) {
  * @param {maxChance} number
  * @returns {"VIABLE" | "NON-VIABLE" | "UNKNOWN"}
  */
-function getChanceSpreadViability(minChance, maxChance) {
+function getChanceSpreadViability(minChance, maxChance, type = undefined) {
 
-    const THRESHOLD = 0.75
+    const THRESHOLD = type == "BlackOp" ? 0.9 : 0.75
     if (minChance > THRESHOLD) {
         return "VIABLE"
     }
@@ -115,7 +141,7 @@ async function modifyLevelToHighestAcceptable(ns, type, name) {
     for (let level = blade.getActionMaxLevel(type, name); level > 0; level--) {
         blade.setActionLevel(type, name, level)
         const [minChance, maxChance] = blade.getActionEstimatedSuccessChance(type, name)
-        const viability = getChanceSpreadViability(minChance, maxChance)
+        const viability = getChanceSpreadViability(minChance, maxChance, type)
         if (viability == "UNKNOWN") {
             return "UNKNOWN"
         }
@@ -140,7 +166,7 @@ function isViableTarget(ns, type, name) {
     const blade = ns.bladeburner
 
     const [minChance, maxChance] = blade.getActionEstimatedSuccessChance(type, name)
-    return getChanceSpreadViability(minChance, maxChance)
+    return getChanceSpreadViability(minChance, maxChance, type)
 }
 
 /** @param {import(".").NS } ns */
@@ -188,10 +214,14 @@ async function getTarget(ns) {
 
     // If we have a high enough population, allow certain operations
     const targetCityPop = getTargetCity(ns).pop
-    if (targetCityPop > 1_500_000_000) {
+
+    const stingThreshold = POP_ESTIMATE_THRESHOLD + 5e8 // + 500m
+    if (targetCityPop > stingThreshold) {
         options[0].names.push("Sting Operation")
     }
-    if (targetCityPop > 2_000_000_000) {
+
+    const stealthThreshold = POP_ESTIMATE_THRESHOLD + 1e9 // + 1bn
+    if (targetCityPop > stealthThreshold) {
         options[0].names.push("Stealth Retirement Operation")
     }
 
@@ -203,6 +233,22 @@ async function getTarget(ns) {
             }
         })
     })
+
+    const currentRank = blade.getRank()
+    const blackOp = blade.getBlackOpNames()
+        .map(name => {
+            return {
+                type: "BlackOp",
+                name: name,
+            }
+        })
+        .filter(option => blade.getBlackOpRank(option.name) < currentRank)
+        .filter(option => blade.getActionCountRemaining(option.type, option.name) > 0)
+        [0]
+
+    if (blackOp) {
+        options.push(blackOp)
+    }
 
     for (const option of options) {
         option.level = await modifyLevelToHighestAcceptable(ns, option.type, option.name)
@@ -216,8 +262,10 @@ async function getTarget(ns) {
             return false
         }
 
-        return option.level > 0
+        return option.level > 0 // BlackOps have a level of 1 if we can do them
     })
+
+    // pp(ns, `${JSON.stringify(options, null, 2)}`)
 
     if (needMoreInfo) {
         // Override our available options with info-generating options.
@@ -237,16 +285,30 @@ async function getTarget(ns) {
         ]
             .filter(option => isViableTarget(ns, option.type, option.name) == "VIABLE")
     }
+    
+    // pp(ns, `options: ${JSON.stringify(options, null, 2)}`)
 
-    for (const option of options) {
-        option.rep = blade.getActionRepGain(option.type, option.name)
-        option.time = blade.getActionTime(option.type, option.name)
-        option.repRatio = option.rep / option.time
-    }
+    let option
 
-    options.sort((a, b) => b.repRatio - a.repRatio)
+    // If a BlackOp is viable, use that.
+    // There SHOULD be at most one BlackOp in the list.
+    const firstBlackOp = options.find(option => option.type == "BlackOp")
+    option = firstBlackOp ? firstBlackOp : options[0]
+    // if (firstBlackOp) {
+    //     option = firstBlackOp
+    // } else {
+    //     for (const option of options) {
+    //         option.rep = blade.getActionRepGain(option.type, option.name)
+    //         option.time = blade.getActionTime(option.type, option.name)
+    //         option.repRatio = option.rep / option.time
+    //     }
+    
+    //     options.sort((a, b) => b.repRatio - a.repRatio)
+    //     option = options[0]
+    //     pp(ns, JSON.stringify(options, null, 2))
+    // }
 
-    const option = options[0]
+
     if (!option) {
         pp(ns, `No valid target. Training instead.`)
         return {
@@ -279,7 +341,8 @@ function getCityNumbers(ns, cityName) {
 
 function isPopulationHighEnough(cityNumbers) {
     // 1bn is needed, but we want a little buffer
-    return cityNumbers.pop > 1_100_000_000
+    // due to estimates being wrong
+    return cityNumbers.pop > POP_ESTIMATE_THRESHOLD
 }
 
 function isChaosLowEnough(cityNumbers) {
