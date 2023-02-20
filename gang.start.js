@@ -8,6 +8,8 @@ function maybeStartGang(ns) {
     }
 
     const availableCombatFactions = [
+        'Speakers for the Dead',
+        'The Dark Army',
         'The Syndicate',
         'Slum Snakes',
     ]
