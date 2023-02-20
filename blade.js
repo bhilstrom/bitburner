@@ -37,6 +37,12 @@ async function runAction(ns, type, name) {
         pp(ns, `Running ${type}.${name} for ${msToS(time, 0)} seconds`)
     }
 
+    const bonusTime = blade.getBonusTime()
+    if (bonusTime && bonusTime > time) {
+        time = Math.ceil(time / 5)
+        pp(ns, `... accounting for bonus time, only sleeping for ${msToS(time)} seconds`)
+    }
+
     await ns.sleep(time)
 }
 
@@ -53,7 +59,9 @@ async function spendSkillPoints(ns) {
         "Overclock": {
             max: 90,
         },
-        "Hyperdrive": {},
+        "Hyperdrive": {
+            max: 200,
+        },
         "Digital Observer": {},
         "Short-Circuit": {},
         "Reaper": {},
@@ -98,10 +106,12 @@ async function spendSkillPoints(ns) {
  * @param {maxChance} number
  * @returns {"VIABLE" | "NON-VIABLE" | "UNKNOWN"}
  */
-function getChanceSpreadViability(minChance, maxChance, type = undefined) {
+function getChanceSpreadViability(minChance, maxChance, type) {
 
-    const THRESHOLD = type == "BlackOp" ? 0.9 : 0.75
-    if (minChance > THRESHOLD) {
+    // Failing BlackOp and Operation comes with a penalty, which would REALLY
+    // screw with our predictions, so only do those if we have 100% chance.
+    const THRESHOLD = ["BlackOp", "Operation"].includes(type) ? 1 : 0.9
+    if (minChance >= THRESHOLD) {
         return "VIABLE"
     }
 
@@ -118,6 +128,10 @@ function getChanceSpreadViability(minChance, maxChance, type = undefined) {
 
     if (minChance < (THRESHOLD - (spreadThreshold / 2) - .025)) {
         // pp(ns, `${type}.${name} needs more info -- min chance too low`)
+        return "UNKNOWN"
+    }
+
+    if (maxChance == 1 && THRESHOLD == 1) {
         return "UNKNOWN"
     }
 
@@ -207,6 +221,7 @@ async function getTarget(ns) {
             type: "Contract",
             names: [
                 "Bounty Hunter",
+                "Retirement",
                 "Tracking",
             ]
         },
@@ -215,15 +230,16 @@ async function getTarget(ns) {
     // If we have a high enough population, allow certain operations
     const targetCityPop = getTargetCity(ns).pop
 
-    const stingThreshold = POP_ESTIMATE_THRESHOLD + 5e8 // + 500m
-    if (targetCityPop > stingThreshold) {
-        options[0].names.push("Sting Operation")
-    }
+    // const stingThreshold = POP_ESTIMATE_THRESHOLD + 5e8 // + 500m
+    // if (targetCityPop > stingThreshold) {
+    //     options[0].names.push("Sting Operation")
+    // }
 
-    const stealthThreshold = POP_ESTIMATE_THRESHOLD + 1e9 // + 1bn
-    if (targetCityPop > stealthThreshold) {
-        options[0].names.push("Stealth Retirement Operation")
-    }
+    // Stealth retirement reduces population by a percentage, so we don't want those.
+    // const stealthThreshold = POP_ESTIMATE_THRESHOLD + 2e9 // + 2bn
+    // if (targetCityPop > stealthThreshold) {
+    //     options[0].names.push("Stealth Retirement Operation")
+    // }
 
     options = options.flatMap(option => {
         return option.names.map(name => {
@@ -293,20 +309,19 @@ async function getTarget(ns) {
     // If a BlackOp is viable, use that.
     // There SHOULD be at most one BlackOp in the list.
     const firstBlackOp = options.find(option => option.type == "BlackOp")
-    option = firstBlackOp ? firstBlackOp : options[0]
-    // if (firstBlackOp) {
-    //     option = firstBlackOp
-    // } else {
-    //     for (const option of options) {
-    //         option.rep = blade.getActionRepGain(option.type, option.name)
-    //         option.time = blade.getActionTime(option.type, option.name)
-    //         option.repRatio = option.rep / option.time
-    //     }
+    if (firstBlackOp) {
+        option = firstBlackOp
+    } else {
+        // for (const option of options) {
+        //     option.rep = blade.getActionRepGain(option.type, option.name)
+        //     option.time = blade.getActionTime(option.type, option.name)
+        //     option.repRatio = option.rep / option.time
+        // }
     
-    //     options.sort((a, b) => b.repRatio - a.repRatio)
-    //     option = options[0]
-    //     pp(ns, JSON.stringify(options, null, 2))
-    // }
+        // options.sort((a, b) => b.repRatio - a.repRatio)
+        option = options[0]
+        // pp(ns, JSON.stringify(options, null, 2))
+    }
 
 
     if (!option) {
