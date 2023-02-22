@@ -223,3 +223,14 @@ export function getCities(ns) {
     ns.enums.CityName.Ishima,
   ]
 }
+
+export const Ports = {
+  BRAIN: 1,
+  SLEEVE: 2,
+}
+
+/** @param {import(".").NS } ns */
+export function readFromPort(ns, number) {
+  const result = ns.readPort(number)
+  return result == "NULL PORT DATA" ? undefined : result
+}
