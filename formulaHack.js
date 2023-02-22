@@ -3,15 +3,29 @@ import { hasFormulasAccess, settings, getItem, pp } from './common.js'
 const hackingScripts = ['hack.js', 'grow.js', 'weaken.js', 'common.js', 'hack.batch.js', 'grow.batch.js', 'weaken.batch.js']
 
 /** @param {import(".").NS } ns */
+function getHacknetNames(ns) {
+    let names = []
+    for (let i = 0; i < ns.hacknet.numNodes(); i++) {
+        names.push(ns.hacknet.getNodeStats(i).name)
+    }
+
+    return names
+}
+
+/** @param {import(".").NS } ns */
 function getRootedServers(ns, servers) {
+
+    const hacknetNames = getHacknetNames(ns)
 
     // Only include servers:
     // - With root access
+    // - That aren't a hacknet server
     // - That have more than 1 ram
     const rootServers = Object.keys(servers)
-        .filter((hostname) => ns.serverExists(hostname))
-        .filter((hostname) => ns.hasRootAccess(hostname))
-        .filter((hostname) => servers[hostname].ram >= 2)
+        .filter(hostname => ns.serverExists(hostname))
+        .filter(hostname => ns.hasRootAccess(hostname))
+        .filter(hostname => !hacknetNames.includes(hostname))
+        .filter(hostname => servers[hostname].ram >= 2)
 
     // Copy hacking scripts to rooted servers
     rootServers
