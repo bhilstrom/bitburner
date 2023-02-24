@@ -1,27 +1,4 @@
-import { settings, getItem, pp } from './common.js'
-
-const hackingScripts = ['hack.js', 'grow.js', 'weaken.js', 'common.js']
-
-/** @param {import(".").NS } ns */
-function getRootedServers(ns, servers) {
-
-    // Only include servers:
-    // - With root access
-    // - That have more than 1 ram
-    const rootServers = Object.keys(servers)
-        .filter((hostname) => ns.serverExists(hostname))
-        .filter((hostname) => ns.hasRootAccess(hostname))
-        .filter((hostname) => servers[hostname].ram >= 2)
-
-    // Copy hacking scripts to rooted servers
-    rootServers
-        .filter(hostname => hostname !== "home")
-        .forEach(hostname => ns.scp(hackingScripts, hostname))
-
-    // Send scripts to biggest servers first
-    rootServers.sort((a, b) => servers[b].ram - servers[a].ram)
-    return rootServers
-}
+import { settings, getItem, pp, getRootedServers } from './common.js'
 
 /** @param {import(".").NS } ns */
 function findWeightedTargetServers(ns, rootedServers, servers, serverExtraData) {
