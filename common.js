@@ -234,3 +234,50 @@ export function readFromPort(ns, number) {
   const result = ns.readPort(number)
   return result == "NULL PORT DATA" ? undefined : result
 }
+
+const hackingScripts = ['hack.js', 'grow.js', 'weaken.js', 'common.js', 'hack.batch.js', 'grow.batch.js', 'weaken.batch.js']
+
+/** @param {import(".").NS } ns */
+export function getHacknetNames(ns) {
+    let names = []
+    for (let i = 0; i < ns.hacknet.numNodes(); i++) {
+        names.push(ns.hacknet.getNodeStats(i).name)
+    }
+
+    return names
+}
+
+/** @param {import(".").NS } ns */
+export function getRootedServers(ns, servers) {
+
+  const hacknetNames = getHacknetNames(ns)
+
+  // Only include servers:
+  // - With root access
+  // - That aren't a hacknet server
+  // - That have more than 1 ram
+  const rootServers = Object.keys(servers)
+      .filter(hostname => ns.serverExists(hostname))
+      .filter(hostname => ns.hasRootAccess(hostname))
+      .filter(hostname => !hacknetNames.includes(hostname))
+      .filter(hostname => servers[hostname].ram >= 2)
+
+  // Copy hacking scripts to rooted servers
+  rootServers
+      .filter(hostname => hostname !== "home")
+      .forEach(hostname => ns.scp(hackingScripts, hostname))
+
+  // Send scripts to:
+  // - biggest servers first
+  // - with 'home' last (we want to reserve it for grow scripts)
+  rootServers.sort((a, b) => {
+      if (b === 'home') {
+          return -1
+      } else if (a === 'home') {
+          return 1
+      }
+
+      return servers[b].ram - servers[a].ram
+  })
+  return rootServers
+}
