@@ -2,7 +2,7 @@ import { getHackPrograms, getPlayerDetails, getItem, settings, pp, runAndWaitFor
 import { getConnectionPath } from './findConnection.js'
 
 /** @param {import(".").NS } ns */
-async function trainHackingTo10(ns) {
+export async function trainHackingTo10(ns) {
 
     if (ns.getHackingLevel() >= 10) {
         pp(ns, 'Hack level is already 10 or above', true)
