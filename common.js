@@ -227,6 +227,7 @@ export function getCities(ns) {
 export const Ports = {
   BRAIN: 1,
   SLEEVE: 2,
+  HACKNET: 3,
 }
 
 /** @param {import(".").NS } ns */
