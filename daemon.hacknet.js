@@ -2,22 +2,26 @@ import { pp, Ports, readFromPort } from './common.js'
 
 export const HacknetAction = {
     SPEND_BLADEBURNER: "SPEND_BLADEBURNER",
-    UPGRADE: "UPGRADE",
+    SPEND_GYM: "SPEND_GYM",
+    SPEND_MONEY: "SPEND_MONEY",
+    SPEND_OFF: "SPEND_OFF",
+    UPGRADE_ON: "UPGRADE_ON",
+    UPGRADE_OFF: "UPGRADE_OFF",
 }
 
-/** @param {import(".").NS } ns */
-function upgradeCore(ns, index) {
-    ns.hacknet.upgradeCore(index, 1)
-}
+const SPEND_ACTIONS = [
+    HacknetAction.SPEND_BLADEBURNER,
+    HacknetAction.SPEND_GYM,
+    HacknetAction.SPEND_MONEY,
+    HacknetAction.SPEND_OFF,
+]
 
-/** @param {import(".").NS } ns */
-function upgradeLevel(ns, index) {
-    ns.hacknet.upgradeLevel(index, 1)
-}
+function triggerSpendAction(newSpendAction, currentActions) {
+    for (const spendAction of SPEND_ACTIONS) {
+        currentActions[spendAction] = false
+    }
 
-/** @param {import(".").NS } ns */
-function upgradeRam(ns, index) {
-    ns.hacknet.upgradeRam()
+    currentActions[newSpendAction] = true
 }
 
 /** @param {import(".").NS } ns */
@@ -70,10 +74,6 @@ async function upgradeHacknet(ns) {
         }
 
         nodes.push(node)
-        // while (hack.upgradeLevel(i, 1)) {}
-        // while (hack.upgradeCore(i, 1)) {}
-        // while (hack.upgradeRam(i, 1)) {}
-        // while (hack.upgradeCache(i, 1)) {}
     }
 
     nodes.sort((a, b) => b.maxEff - a.maxEff)
@@ -86,12 +86,53 @@ async function upgradeHacknet(ns) {
 }
 
 /** @param {import(".").NS } ns */
-async function spendHashes(ns) {
+async function spendHashes(ns, currentActions) {
     const hack = ns.hacknet
-    
-    // hack.spendHashes('Exchange for Bladeburner Rank')
-    // hack.spendHashes('Exchange for Bladeburner SP')
-    hack.spendHashes('Sell for Money', undefined, Math.floor(hack.numHashes() / 4))
+
+    const desiredUpgrades = []
+
+    if (currentActions[HacknetAction.SPEND_BLADEBURNER]) {
+        desiredUpgrades.push('Exchange for Bladeburner Rank')
+        desiredUpgrades.push('Exchange for Bladeburner SP')
+    }
+
+    if (currentActions[HacknetAction.SPEND_MONEY]) {
+        hack.spendHashes('Sell for Money', undefined, Math.floor(hack.numHashes() / 4))
+    }
+
+    if (currentActions[HacknetAction.SPEND_GYM]) {
+        hack.spendHashes('Improve Gym Training')
+    }
+
+    let numHashes = hack.numHashes()
+    for (const upgrade of desiredUpgrades) {
+        const cost = hack.hashCost(upgrade, 1)
+        if (cost > numHashes) {
+            pp(ns, `${numHashes}/${cost} hashes to purchase '${upgrade}'`)
+        } else {
+            hack.spendHashes(upgrade)
+            numHashes -= cost
+        }
+    }
+}
+
+function updateCurrentActions(portData, currentActions) {
+
+    if (SPEND_ACTIONS.includes(portData)) {
+        triggerSpendAction(portData, currentActions)
+        return
+    }
+
+    switch (portData) {
+        case HacknetAction.UPGRADE_OFF:
+            currentActions[HacknetAction.UPGRADE_ON] = false
+            break
+        case HacknetAction.UPGRADE_ON:
+            currentActions[HacknetAction.UPGRADE_ON] = true
+            break
+        default:
+            throw new Error(`Unhandled port data: ${portData}`)
+    }
 }
 
 /** @param {import(".").NS } ns */
@@ -105,26 +146,18 @@ export async function main(ns) {
     while (true) {
         await ns.sleep(500)
 
-        // await upgradeHacknet(ns)
+        const portData = readFromPort(ns, Ports.HACKNET)
+        if (portData) {
+            pp(ns, `Received port data: ${portData}`)
+            updateCurrentActions(portData, currentActions)
+        }
 
-        await spendHashes(ns)
+        pp(ns, `Current actions: ${JSON.stringify(currentActions, null, 2)}`)
 
+        if (currentActions.UPGRADE_ON) {
+            await upgradeHacknet(ns)
+        }
 
-        // const portData = readFromPort(ns, Ports.SLEEVE)
-        // if (portData) {
-        //     updateCurrentActions(portData, currentActions)
-        // }
-
-        // for (const action of currentActions) {
-
-        // }
-        // switch (portData) {
-        //     case SleeveAction.TRAIN_HACK:
-        //         pp(ns, "Got train hack request", true)
-        //         break
-
-        //     default:
-        //         throw new Error(`Cannot handle port data: ${portData}`)
-        // }
+        await spendHashes(ns, currentActions)
     }
 }
