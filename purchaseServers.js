@@ -1,4 +1,4 @@
-import { settings, pp } from './common.js'
+import { settings, pp, getHacknetNames } from './common.js'
 
 /** @param {import(".").NS } ns */
 function getRamToPurchase(ns, minRamPow = 3, maxRamPow = 20) {
@@ -16,7 +16,11 @@ function getRamToPurchase(ns, minRamPow = 3, maxRamPow = 20) {
 
 /** @param {import(".").NS } ns */
 function getSortedServers(ns) {
+
+    const hacknetNames = getHacknetNames(ns)
+
     return ns.getPurchasedServers()
+        .filter(serverName => !hacknetNames.includes(serverName))
         .map(serverName => ns.getServer(serverName))
         .sort((a, b) => a.maxRam - b.maxRam)
 }
@@ -34,12 +38,19 @@ export async function main(ns) {
     const serverNamePrefix = "pserv-"
     const purchasedServerLimit = ns.getPurchasedServerLimit()
 
+    if (purchasedServerLimit <= 0) {
+        throw new Error('Cannot purchase servers in this Bitnode')
+    }
+
     const numberToPurchase = ns.args[0] || Number.MAX_SAFE_INTEGER
 
     let purchasesMade = 0
     while (purchasesMade < numberToPurchase) {
 
         let servers = getSortedServers(ns)
+
+        pp(ns, `servers: ${JSON.stringify(servers, null, 2)}`)
+
         // pp(ns, `Purchased servers: ${JSON.stringify(servers, null, 2)}`, true)
         let spiderDataRefreshNeeded = false
 
