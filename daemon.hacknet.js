@@ -2,6 +2,7 @@ import { pp, Ports, readFromPort } from './common.js'
 
 export const HacknetAction = {
     SPEND_BLADEBURNER: "SPEND_BLADEBURNER",
+    SPEND_CORP: "SPEND_CORP",
     SPEND_GYM: "SPEND_GYM",
     SPEND_MONEY: "SPEND_MONEY",
     SPEND_OFF: "SPEND_OFF",
@@ -11,6 +12,7 @@ export const HacknetAction = {
 
 const SPEND_ACTIONS = [
     HacknetAction.SPEND_BLADEBURNER,
+    HacknetAction.SPEND_CORP,
     HacknetAction.SPEND_GYM,
     HacknetAction.SPEND_MONEY,
     HacknetAction.SPEND_OFF,
@@ -94,6 +96,10 @@ async function spendHashes(ns, currentActions) {
     if (currentActions[HacknetAction.SPEND_BLADEBURNER]) {
         desiredUpgrades.push('Exchange for Bladeburner Rank')
         desiredUpgrades.push('Exchange for Bladeburner SP')
+    }
+
+    if (currentActions[HacknetAction.SPEND_CORP]) {
+        hack.spendHashes('Exchange for Corporation Research')
     }
 
     if (currentActions[HacknetAction.SPEND_MONEY]) {
