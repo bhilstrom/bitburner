@@ -24,14 +24,19 @@ export function settings() {
 
 /** @param {import(".").NS } ns */
 export async function runAndWaitFor(ns, scriptName, ...args) {
-  if (!ns.exec(scriptName, 'home', 1, ...args)) {
+  await runAndWaitForThreads(ns, scriptName, 1, ...args)
+}
+
+/** @param {import(".").NS } ns */
+export async function runAndWaitForThreads(ns, scriptName, threads, ...args) {
+  if (!ns.exec(scriptName, 'home', threads, ...args)) {
     throw new Error(`Failed to start ${scriptName}`)
   }
 
   await ns.sleep(0)
 
   while (ns.scriptRunning(scriptName, 'home')) {
-    await ns.sleep(1000)
+    await ns.sleep(100)
   }
 }
 
@@ -240,12 +245,12 @@ const hackingScripts = ['hack.js', 'grow.js', 'weaken.js', 'common.js', 'hack.ba
 
 /** @param {import(".").NS } ns */
 export function getHacknetNames(ns) {
-    let names = []
-    for (let i = 0; i < ns.hacknet.numNodes(); i++) {
-        names.push(ns.hacknet.getNodeStats(i).name)
-    }
+  let names = []
+  for (let i = 0; i < ns.hacknet.numNodes(); i++) {
+    names.push(ns.hacknet.getNodeStats(i).name)
+  }
 
-    return names
+  return names
 }
 
 /** @param {import(".").NS } ns */
@@ -258,27 +263,27 @@ export function getRootedServers(ns, servers) {
   // - That aren't a hacknet server
   // - That have more than 1 ram
   const rootServers = Object.keys(servers)
-      .filter(hostname => ns.serverExists(hostname))
-      .filter(hostname => ns.hasRootAccess(hostname))
-      .filter(hostname => !hacknetNames.includes(hostname))
-      .filter(hostname => servers[hostname].ram >= 2)
+    .filter(hostname => ns.serverExists(hostname))
+    .filter(hostname => ns.hasRootAccess(hostname))
+    .filter(hostname => !hacknetNames.includes(hostname))
+    .filter(hostname => servers[hostname].ram >= 2)
 
   // Copy hacking scripts to rooted servers
   rootServers
-      .filter(hostname => hostname !== "home")
-      .forEach(hostname => ns.scp(hackingScripts, hostname))
+    .filter(hostname => hostname !== "home")
+    .forEach(hostname => ns.scp(hackingScripts, hostname))
 
   // Send scripts to:
   // - biggest servers first
   // - with 'home' last (we want to reserve it for grow scripts)
   rootServers.sort((a, b) => {
-      if (b === 'home') {
-          return -1
-      } else if (a === 'home') {
-          return 1
-      }
+    if (b === 'home') {
+      return -1
+    } else if (a === 'home') {
+      return 1
+    }
 
-      return servers[b].ram - servers[a].ram
+    return servers[b].ram - servers[a].ram
   })
   return rootServers
 }
