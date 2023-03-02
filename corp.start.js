@@ -31,7 +31,7 @@ function needToCreateCorp(ns) {
 }
 
 /** @param {import(".").NS } ns */
-function createCorp(ns) {
+async function createCorp(ns) {
     let c = ns.corporation
 
     // Self-funding is better.
@@ -48,8 +48,18 @@ function createCorp(ns) {
     }
 
     if (!created) {
-        c.createCorporation(CORP_NAME, true)
+        created = c.createCorporation(CORP_NAME, true)
+    }
+
+    if (!created) {
         pp(ns, "Created corp without self-funding", true)
+    } else {
+
+        while (needToCreateCorp(ns) && !created) {
+            pp(ns, `Waiting until corp creation successful...`, true)
+            await ns.sleep(5_000)
+            created = c.createCorporation(CORP_NAME)
+        }
     }
 }
 
@@ -69,7 +79,23 @@ function coffeeParty(ns, divisions = undefined) {
     divisions = divisions || getDivisions(ns)
     let c = ns.corporation
     let anyNeeded = false
+
     for (const division of divisions) {
+        let energyThreshold = 95
+        if (ns.corporation.hasResearched(division, "Go-Juice")) {
+            energyThreshold += 10
+        }
+
+        let happinessThreshold = 95
+        if (ns.corporation.hasResearched(division, "JoyWire")) {
+            happinessThreshold += 10
+        }
+
+        let moraleThreshold = 95
+        if (ns.corporation.hasResearched(division, "Sti.mu")) {
+            moraleThreshold += 10
+        }
+
         for (const city of getCities(ns)) {
 
             // Getting the office fails if we haven't expanded to the division or city yet
@@ -80,13 +106,13 @@ function coffeeParty(ns, divisions = undefined) {
                 return true
             }
 
-            if (office.avgEne < 95) {
+            if (office.avgEne < energyThreshold) {
                 anyNeeded = true
                 // pp(ns, `Buying coffee for ${division}.${city}`)
                 c.buyCoffee(division, city)
             }
 
-            if (office.avgHap < 95 || office.avgMor < 95) {
+            if (office.avgHap < happinessThreshold || office.avgMor < moraleThreshold) {
                 anyNeeded = true
                 // pp(ns, `Throwing party for ${division}.${city}`)
                 c.throwParty(division, city, 500_000)
@@ -290,6 +316,7 @@ function getJobTitles() {
         "Business",
         "Management",
         "Research & Development",
+        "Training",
     ]
 }
 
@@ -359,6 +386,7 @@ async function hireOrAssign(ns, division, stage, desiredJobs, desiredJobsCityOve
 
         // Increase office size if necessary
         const reqsToOpen = totalJobs - office.size
+        // pp(ns, `Calculating reqsToOpen: totalJobs ${totalJobs}, office size: ${office.size}`)
         if (reqsToOpen > 0) {
             pp(ns, `Opening ${reqsToOpen} in ${division}.${city}`)
             ns.corporation.upgradeOfficeSize(division, city, reqsToOpen)
@@ -366,6 +394,11 @@ async function hireOrAssign(ns, division, stage, desiredJobs, desiredJobsCityOve
 
         // Hire people if necessary
         anyHired = await fillOffice(ns, division, city)
+
+        // Unassign everyone so we can assign them to the correct role.
+        for (const job of getJobTitles()) {
+            ns.corporation.setAutoJobAssignment(division, city, job, 0)
+        }
 
         // Assign people to the appropriate job
         for (const job of getJobTitles()) {
@@ -389,6 +422,9 @@ async function fillPositionsForTobacco(ns) {
 
         // Hire people if necessary
         await fillOffice(ns, TOBACCO_NAME, city)
+
+        // Remove everyone from 'Training'
+        ns.corporation.setAutoJobAssignment(TOBACCO_NAME, city, "Training", 0)
 
         /*
         Jobs assigned to research cities:
@@ -692,6 +728,12 @@ async function adjustProductPrices(ns, division) {
     for (let i = 0; i < productNamesAndVersions.length; i++) {
         const productNameAndVersion = productNamesAndVersions[i]
         const product = ns.corporation.getProduct(division, productNameAndVersion.name)
+
+        // Don't set the prices of things under development
+        if (product.developmentProgress < 100) {
+            continue
+        }
+
         if (!product.sCost) {
 
             // Default to whatever we were selling the previous one at.
@@ -699,7 +741,7 @@ async function adjustProductPrices(ns, division) {
             // This lets us manually tune things sometimes without losing too much efficiency.
             let sellPrice = "MP*1"
             if (i > 0) {
-                let previousProduct = ns.corporation.getProduct(division, productNamesAndVersions[i-1].name)
+                let previousProduct = ns.corporation.getProduct(division, productNamesAndVersions[i - 1].name)
                 pp(ns, `Previous product: ${previousProduct.name}, sCost: ${previousProduct.sCost}`)
                 sellPrice = previousProduct.sCost
             }
@@ -719,13 +761,47 @@ async function adjustProductPrices(ns, division) {
 }
 
 /** @param {import(".").NS } ns */
+async function purchaseUpgrades(ns, division) {
+
+    const corp = ns.corporation
+
+    const divisionData = corp.getDivision(division)
+    const lastCycleProfit = divisionData.lastCycleRevenue - divisionData.lastCycleExpenses
+
+    const advertCost = corp.getHireAdVertCost(division)
+    if (lastCycleProfit > advertCost && corp.getCorporation().funds > advertCost) {
+        pp(ns, `Hiring AdVert in ${division} for ${advertCost}`)
+        corp.hireAdVert(division)
+    }
+
+    const upgrades = [
+        "FocusWires",
+        "Neural Accelerators",
+        "Speech Processor Implants",
+        "Nuoptimal Nootropic Injector Implants",
+        "Project Insight",
+        "Wilson Analytics",
+    ]
+    for (const upgrade of upgrades) {
+        const upgradeCost = corp.getUpgradeLevelCost(upgrade)
+        const funds = corp.getCorporation().funds
+        if (lastCycleProfit > upgradeCost && funds > upgradeCost) {
+            pp(ns, `Trying to purchase ${upgrade} for ${upgradeCost}`)
+            corp.levelUpgrade(upgrade)
+        } else {
+            // pp(ns, `Cannot upgrade ${upgrade}, cost: ${upgradeCost}, profit: ${lastCycleProfit}, funds: ${funds}`)
+        }
+    }
+}
+
+/** @param {import(".").NS } ns */
 export async function main(ns) {
     ns.disableLog("ALL")
 
     let c = ns.corporation
 
     if (needToCreateCorp(ns)) {
-        createCorp(ns)
+        await createCorp(ns)
     } else {
         pp(ns, "Corp already exists, not creating")
     }
@@ -979,6 +1055,8 @@ export async function main(ns) {
         await adjustProductPrices(ns, TOBACCO_NAME)
 
         await fillPositionsForTobacco(ns)
+
+        await purchaseUpgrades(ns, TOBACCO_NAME)
 
         await ns.sleep(100)
     }
